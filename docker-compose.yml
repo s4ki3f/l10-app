@@ -1,0 +1,45 @@
+# docker compose up  →  db (healthy) → migrate → seed → api
+name: l10
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: l10
+      POSTGRES_PASSWORD: l10
+      POSTGRES_DB: l10
+    ports: ["5433:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U l10 -d l10"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    build: ./api
+    command: ["alembic", "upgrade", "head"]
+    environment: &api-env
+      DATABASE_URL: postgresql+psycopg://l10:l10@db:5432/l10
+      APP_NOW: ${APP_NOW:-2026-11-11T15:00:00Z}
+    depends_on:
+      db: {condition: service_healthy}
+
+  seed:
+    build: ./api
+    command: ["python", "-m", "app.db.seed", "/seed/seed.json"]
+    environment: *api-env
+    volumes: [./seed.json:/seed/seed.json:ro]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+
+  api:
+    build: ./api
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment: *api-env
+    ports: ["8000:8000"]
+    depends_on:
+      seed: {condition: service_completed_successfully}
+
+volumes:
+  pgdata:
