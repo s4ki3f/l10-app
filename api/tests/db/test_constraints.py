@@ -127,3 +127,22 @@ def test_seed_is_safe_to_rerun(db):
     load_seed(db, SEED)
     assert db.execute(text("SELECT count(*) FROM scores")).scalar() == before
     assert db.execute(text("SELECT value FROM scores WHERE measurable_id = 'm1' AND week_start = '2026-11-02'")).scalar() == 8
+
+
+def test_reset_restores_exactly_the_seed(db):
+    from tests.conftest import SEED
+    from app.db.seed import reset_to_seed
+
+    def snapshot():
+        return {t: db.execute(text(f"SELECT count(*) FROM {t}")).scalar()
+                for t in ("issues", "todos", "scores", "meetings", "meeting_attendees", "meeting_ratings")}
+
+    before = snapshot()
+    db.execute(text("INSERT INTO issues (id, team_id, title, owner_id, created_at) VALUES ('i_new','team_lead','x','u2',now())"))
+    db.execute(text("INSERT INTO scores (measurable_id, week_start, value) VALUES ('m1','2026-11-09',3)"))
+    db.execute(text("UPDATE issues SET solved_at = now(), resolution_note = 'n' WHERE id = 'i1'"))
+    db.execute(text("INSERT INTO meetings (id, team_id, facilitator_id, started_at, section_started_at) VALUES ('mt_new','team_lead','u2',now(),now())"))
+    db.execute(text("INSERT INTO meeting_attendees (meeting_id, user_id) VALUES ('mt_new','u2'), ('mt1','u6')"))
+    reset_to_seed(db, SEED)
+    assert snapshot() == before
+    assert db.execute(text("SELECT solved_at FROM issues WHERE id = 'i1'")).scalar() is None

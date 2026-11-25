@@ -1,11 +1,14 @@
 """Load seed.json into Postgres. Safe to rerun.
 
+`--reset` first deletes everything the app created (rows whose ids are not in the seed, and score cells
+the seed doesn't have), so the database is exactly the seed again. The E2E tests start from it.
+
 Every seed row is an upsert keyed by its seed id (INSERT … ON CONFLICT DO UPDATE), so:
 - running it twice changes nothing;
 - running it after edits restores the seed's version of seed records;
 - rows created in the app (generated ids) are left alone.
 
-    python -m app.db.seed [path/to/seed.json]
+    python -m app.db.seed [--reset] [path/to/seed.json]
 """
 import json
 import sys
@@ -13,7 +16,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
-from sqlalchemy import Connection
+from sqlalchemy import Connection, delete, tuple_
 from sqlalchemy.dialects.postgresql import insert
 
 from ..rules.weeks import parse_utc
@@ -100,12 +103,27 @@ def load_seed(conn: Connection, seed: dict) -> None:
         _upsert(conn, model, rows)
 
 
+def reset_to_seed(conn: Connection, seed: dict) -> None:
+    """Remove app-created rows (children first), then load the seed."""
+    ids = lambda key: [x["id"] for x in seed[key]]  # noqa: E731
+    conn.execute(delete(Meeting).where(Meeting.id.not_in(ids("meetings"))))  # attendees/ratings cascade
+    conn.execute(delete(MeetingRating))  # seeded ratings are re-inserted below; this drops ratings added later
+    conn.execute(delete(MeetingAttendee).where(MeetingAttendee.meeting_id.in_(ids("meetings"))))
+    conn.execute(delete(Todo).where(Todo.id.not_in(ids("todos"))))
+    conn.execute(delete(Issue).where(Issue.id.not_in(ids("issues"))))
+    seeded_cells = [(s["measurable_id"], date.fromisoformat(s["week_start"])) for s in seed["scores"]]
+    conn.execute(delete(Score).where(tuple_(Score.measurable_id, Score.week_start).not_in(seeded_cells)))
+    load_seed(conn, seed)
+
+
 def main(argv: list[str]) -> int:
-    path = Path(argv[0]) if argv else DEFAULT_SEED
+    reset = "--reset" in argv
+    rest = [a for a in argv if a != "--reset"]
+    path = Path(rest[0]) if rest else DEFAULT_SEED
     seed = json.loads(path.read_text(encoding="utf-8"))
     with get_engine().begin() as conn:
-        load_seed(conn, seed)
-    print(f"seeded from {path}")
+        reset_to_seed(conn, seed) if reset else load_seed(conn, seed)
+    print(f"{'reset to' if reset else 'seeded from'} {path}")
     return 0
 
 

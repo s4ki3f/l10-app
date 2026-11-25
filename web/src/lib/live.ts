@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AFFECTS, keys } from "./keys";
 
 export type LiveStatus = "connecting" | "live" | "reconnecting";
+const POLL_WHILE_DOWN_MS = 5_000;
 
 /**
  * One EventSource per team page. The server sends hints ({topic}); we mark those queries stale and
@@ -30,6 +31,13 @@ export function useTeamEvents(teamId: string): LiveStatus {
     es.onerror = () => setStatus("reconnecting"); // the browser retries on its own (server sends retry: 1000)
     return () => es.close();
   }, [teamId, qc]);
+
+  // Degrade, don't freeze: while the stream is down, refetch the team every few seconds.
+  useEffect(() => {
+    if (status !== "reconnecting") return;
+    const t = setInterval(() => qc.invalidateQueries({ queryKey: keys.team(teamId) }), POLL_WHILE_DOWN_MS);
+    return () => clearInterval(t);
+  }, [status, teamId, qc]);
 
   return status;
 }
