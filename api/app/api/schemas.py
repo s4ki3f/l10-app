@@ -1,5 +1,6 @@
 """Request and response models. Inputs are validated here, at the edge; the DB constraints back them up."""
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
@@ -156,3 +157,88 @@ class SummaryOut(BaseModel):
     todos_created: list[PersonRef] = Field(description="id and title")
     attendees: list[AttendeeOut]
     rating: float | None
+
+
+# ---------- scorecard ----------
+
+class GoalOut(BaseModel):
+    type: Literal["at_least", "at_most", "between", "exactly"]
+    value: float | None
+    min: float | None
+    max: float | None
+
+
+class CellOut(BaseModel):
+    week_start: date
+    value: float | None
+    status: Literal["on_track", "off_track", "pending"]
+    open_issue_id: str | None = Field(description="The unsolved Issue made from this cell, if any")
+
+
+class ScorecardRow(BaseModel):
+    id: str
+    name: str
+    unit: str
+    owner: PersonRef
+    goal: GoalOut
+    cells: list[CellOut]
+
+
+class ScorecardOut(BaseModel):
+    weeks: list[date] = Field(description="13 weeks, oldest first, ending with the current week")
+    current_week: date
+    last_closed_week: date
+    rows: list[ScorecardRow]
+
+
+Score = Annotated[Decimal, Field(max_digits=14, decimal_places=4, allow_inf_nan=False)]
+
+
+class ScoreIn(Strict):
+    value: Score
+
+
+# ---------- issues: changes ----------
+
+class IssuePatch(Strict):
+    priority: Priority | None = Field(description="1–5, or null to clear")
+
+
+class SolveIn(Strict):
+    note: Note
+
+
+# ---------- to-dos ----------
+
+class CompletionOut(BaseModel):
+    week_start: date
+    due: int
+    done: int
+    rate_percent: int
+    meets_target: bool
+
+
+class TodoList(BaseModel):
+    items: list[TodoOut]
+    last_closed_week: date
+    completion: CompletionOut | None = Field(description="Last closed week's completion rate; null when nothing was due")
+
+
+# ---------- rocks ----------
+
+class MilestoneOut(BaseModel):
+    id: str
+    title: str
+    due_date: date
+    done: bool
+    past_due: bool
+
+
+class RockOut(BaseModel):
+    id: str
+    title: str
+    owner: PersonRef
+    quarter: str
+    status: Literal["on_track", "off_track", "complete"]
+    progress_percent: int
+    milestones: list[MilestoneOut]

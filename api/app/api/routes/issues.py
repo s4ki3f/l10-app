@@ -9,11 +9,14 @@ from ...db import models as m
 from ...db.load import issue_of, todo_of
 from ...realtime import publish
 from ...rules import engine
-from ...rules.weeks import local_date
+from ...rules.weeks import last_closed_week, local_date
 from ..deps import (
     CurrentUser, assert_valid_owner, current_user, get_db, load_in_team, now, team_reader, team_writer,
 )
-from ..schemas import IssueCreate, IssueOut, IssueSource, PersonRef, TodoCreate, TodoOut
+from ..errors import conflict
+from ..schemas import (
+    CompletionOut, IssueCreate, IssueOut, IssuePatch, IssueSource, PersonRef, SolveIn, TodoCreate, TodoList, TodoOut,
+)
 
 router = APIRouter(tags=["issues"])
 
@@ -111,9 +114,61 @@ def add_todo(
     return todos_out(db, [todo], at)[0]
 
 
-@router.get("/teams/{team_id}/todos", response_model=list[TodoOut], summary="The team's To-Dos, by due date")
+@router.get("/teams/{team_id}/todos", response_model=TodoList,
+            summary="The team's To-Dos by due date (overdue flagged) and the last closed week's completion rate")
 def list_todos(team: m.Team = Depends(team_reader), db: Session = Depends(get_db), at: datetime = Depends(now)):
     rows = db.scalars(
         select(m.Todo).where(m.Todo.team_id == team.id, m.Todo.created_at <= at).order_by(m.Todo.due_date, m.Todo.id)
     ).all()
-    return todos_out(db, list(rows), at)
+    week = last_closed_week(at)
+    rate = engine.todo_completion([todo_of(r) for r in rows], week, at)
+    return TodoList(items=todos_out(db, list(rows), at), last_closed_week=week,
+                    completion=CompletionOut(week_start=week, **rate) if rate else None)
+
+
+# ---------- changing Issues ----------
+
+@router.patch("/issues/{issue_id}", response_model=IssueOut, summary="Set or clear an unsolved Issue's priority")
+def set_priority(issue_id: str, body: IssuePatch, user: CurrentUser = Depends(current_user),
+                 db: Session = Depends(get_db)):
+    issue = load_in_team(db, m.Issue, issue_id, user, write=True, what="issue")
+    if issue.solved_at is not None:
+        raise conflict("issue_solved", "a solved Issue can't be reprioritized")
+    issue.priority = body.priority
+    publish(db, issue.team_id, "issues")
+    db.commit()
+    return issues_out(db, [issue])[0]
+
+
+@router.post("/issues/{issue_id}/solve", response_model=IssueOut, summary="Solve an Issue; a resolution note is required")
+def solve_issue(issue_id: str, body: SolveIn, user: CurrentUser = Depends(current_user),
+                db: Session = Depends(get_db), at: datetime = Depends(now)):
+    issue = load_in_team(db, m.Issue, issue_id, user, write=True, what="issue")
+    if issue.solved_at is not None:
+        raise conflict("issue_solved", "this Issue is already solved")
+    issue.solved_at, issue.resolution_note = at, body.note
+    publish(db, issue.team_id, "issues")
+    db.commit()
+    return issues_out(db, [issue])[0]
+
+
+# ---------- To-Dos: done / undo ----------
+
+def _set_done(db: Session, todo_id: str, user: CurrentUser, at: datetime, done: bool) -> TodoOut:
+    todo = load_in_team(db, m.Todo, todo_id, user, write=True, what="to-do")
+    todo.done_at = at if done else None
+    publish(db, todo.team_id, "todos")
+    db.commit()
+    return todos_out(db, [todo], at)[0]
+
+
+@router.post("/todos/{todo_id}/done", response_model=TodoOut, summary="Mark a To-Do done (done time = now)")
+def mark_done(todo_id: str, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db),
+              at: datetime = Depends(now)):
+    return _set_done(db, todo_id, user, at, True)
+
+
+@router.post("/todos/{todo_id}/undo", response_model=TodoOut, summary="Undo: mark a To-Do not done")
+def undo_done(todo_id: str, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db),
+              at: datetime = Depends(now)):
+    return _set_done(db, todo_id, user, at, False)

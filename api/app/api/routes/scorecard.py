@@ -15,11 +15,11 @@ from ...db import models as m
 from ...db.load import goal_of
 from ...realtime import publish
 from ...rules import engine
-from ...rules.weeks import scorecard_weeks, week_of
-from ..deps import CurrentUser, assert_valid_owner, current_user, get_db, load_in_team, now
+from ...rules.weeks import last_closed_week, scorecard_weeks, week_of
+from ..deps import CurrentUser, assert_valid_owner, current_user, get_db, load_in_team, now, team_reader
 from ..errors import AppError, conflict, invalid
 from .issues import issues_out
-from ..schemas import IssueOut
+from ..schemas import CellOut, GoalOut, IssueOut, PersonRef, ScoreIn, ScorecardOut, ScorecardRow
 
 router = APIRouter(tags=["scorecard"])
 
@@ -99,3 +99,60 @@ def make_it_an_issue(
             return issues_out(db, [winner])[0]
         # the winner was solved between our conflict and our read: the cell is free again, try once more
     raise AppError(503, "retry", "the Issue changed while it was being created; try again")
+
+
+# ---------- reading and editing the Scorecard ----------
+
+def _num(v):
+    return None if v is None else float(v)
+
+
+@router.get("/teams/{team_id}/scorecard", response_model=ScorecardOut,
+            summary="Measurables × the last 13 weeks; every cell has its value, computed status and open Issue")
+def get_scorecard(team: m.Team = Depends(team_reader), db: Session = Depends(get_db), at: datetime = Depends(now)):
+    weeks = scorecard_weeks(at)
+    current = week_of(at)
+    measurables = db.scalars(select(m.Measurable).where(m.Measurable.team_id == team.id).order_by(m.Measurable.id)).all()
+    ids = [x.id for x in measurables]
+    scores = {(s.measurable_id, s.week_start): s.value for s in db.scalars(
+        select(m.Score).where(m.Score.measurable_id.in_(ids), m.Score.week_start.in_(weeks)))}
+    open_issues = {(i.source_measurable_id, i.source_week): i.id for i in db.scalars(
+        select(m.Issue).where(m.Issue.source_measurable_id.in_(ids), m.Issue.solved_at.is_(None), m.Issue.created_at <= at))}
+    owners = {u.id: u.name for u in db.scalars(select(m.User).where(m.User.id.in_({x.owner_id for x in measurables})))}
+    rows = []
+    for x in measurables:
+        goal = goal_of(x)
+        rows.append(ScorecardRow(
+            id=x.id, name=x.name, unit=x.unit, owner=PersonRef(id=x.owner_id, name=owners[x.owner_id]),
+            goal=GoalOut(type=x.goal_type, value=_num(x.goal_value), min=_num(x.goal_min), max=_num(x.goal_max)),
+            cells=[CellOut(week_start=w, value=_num(scores.get((x.id, w))),
+                           status=engine.measurable_status(goal, scores.get((x.id, w)), w, current),
+                           open_issue_id=open_issues.get((x.id, w)))
+                   for w in weeks],
+        ))
+    return ScorecardOut(weeks=weeks, current_week=current, last_closed_week=last_closed_week(at), rows=rows)
+
+
+@router.put("/measurables/{measurable_id}/weeks/{week}/score", response_model=CellOut,
+            summary="Enter or edit a score (last save wins). Week must be inside the 13-week Scorecard.")
+def put_score(
+    measurable_id: str,
+    body: ScoreIn,
+    week: date = Path(description="The week's Monday"),
+    user: CurrentUser = Depends(current_user),
+    db: Session = Depends(get_db),
+    at: datetime = Depends(now),
+):
+    measurable = load_in_team(db, m.Measurable, measurable_id, user, write=True, what="measurable")
+    week = cell_week(week, at)
+    db.execute(
+        insert(m.Score).values(measurable_id=measurable.id, week_start=week, value=body.value, updated_at=at, updated_by=user.id)
+        .on_conflict_do_update(index_elements=["measurable_id", "week_start"],
+                               set_={"value": body.value, "updated_at": at, "updated_by": user.id})
+    )
+    publish(db, measurable.team_id, "scorecard")
+    db.commit()
+    issue = _open_issue(db, measurable.id, week)
+    return CellOut(week_start=week, value=float(body.value),
+                   status=engine.measurable_status(goal_of(measurable), body.value, week, week_of(at)),
+                   open_issue_id=issue.id if issue else None)
