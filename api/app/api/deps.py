@@ -1,0 +1,143 @@
+"""The shared dependencies every route goes through: database session, clock, who you are, and the team guard.
+
+Two checks on every team-scoped request, in this order:
+1. Can you see this team?   Admin, or a membership in it.       No → 404 (ids don't leak)
+2. Can your role do this?   Writes need Admin or Team Member.   No → 403 (you can already see it)
+The team always comes from the record being touched, never from the URL alone.
+"""
+import base64
+import hashlib
+import hmac
+import os
+from collections.abc import Iterator
+from dataclasses import dataclass
+from datetime import datetime
+
+from fastapi import Cookie, Depends, Request
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from ..db import models as m
+from ..db.session import session_factory
+from ..rules.clock import Clock
+from .errors import forbidden, not_found, unauthenticated
+
+SESSION_COOKIE = "l10_session"
+_DEV_SECRET = "dev-only-secret-change-me"
+
+
+# ---------- infrastructure ----------
+
+def get_db() -> Iterator[Session]:
+    with session_factory()() as session:
+        yield session
+
+
+def get_clock(request: Request) -> Clock:
+    return request.app.state.clock
+
+
+def now(clock: Clock = Depends(get_clock)) -> datetime:
+    return clock.now()
+
+
+# ---------- signed session cookie ----------
+
+def _secret() -> bytes:
+    return os.environ.get("SESSION_SECRET", _DEV_SECRET).encode()
+
+
+def sign_session(user_id: str) -> str:
+    payload = base64.urlsafe_b64encode(user_id.encode()).decode()
+    mac = hmac.new(_secret(), payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}.{mac}"
+
+
+def read_session(token: str | None) -> str | None:
+    if not token or "." not in token:
+        return None
+    payload, mac = token.rsplit(".", 1)
+    expected = hmac.new(_secret(), payload.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(mac, expected):
+        return None
+    try:
+        return base64.urlsafe_b64decode(payload.encode()).decode()
+    except ValueError:
+        return None
+
+
+# ---------- who you are ----------
+
+@dataclass(frozen=True)
+class CurrentUser:
+    id: str
+    name: str
+    role: str
+    team_ids: frozenset[str]
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == "admin"
+
+    @property
+    def can_write(self) -> bool:
+        return self.role in ("admin", "team_member")
+
+    def can_see(self, team_id: str) -> bool:
+        return self.is_admin or team_id in self.team_ids
+
+
+def current_user(
+    db: Session = Depends(get_db), token: str | None = Cookie(default=None, alias=SESSION_COOKIE)
+) -> CurrentUser:
+    user_id = read_session(token)
+    user = db.get(m.User, user_id) if user_id else None
+    if user is None:
+        raise unauthenticated()
+    teams = db.scalars(select(m.Membership.team_id).where(m.Membership.user_id == user.id)).all()
+    return CurrentUser(user.id, user.name, user.role, frozenset(teams))
+
+
+# ---------- the guard ----------
+
+def authorize(user: CurrentUser, team_id: str, *, write: bool) -> None:
+    if not user.can_see(team_id):
+        raise not_found("team")
+    if write and not user.can_write:
+        raise forbidden("observers can read but not change data")
+
+
+def team_reader(team_id: str, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db)) -> m.Team:
+    """For /teams/{team_id}/… reads."""
+    team = db.get(m.Team, team_id)
+    if team is None:
+        raise not_found("team")
+    authorize(user, team.id, write=False)
+    return team
+
+
+def team_writer(team_id: str, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db)) -> m.Team:
+    """For /teams/{team_id}/… writes."""
+    team = team_reader(team_id, user, db)
+    authorize(user, team.id, write=True)
+    return team
+
+
+def load_in_team(db: Session, model, record_id, user: CurrentUser, *, write: bool, what: str):
+    """Load a record, then authorize against the record's own team. Missing and invisible look the same."""
+    record = db.get(model, record_id)
+    if record is None or not user.can_see(record.team_id):
+        raise not_found(what)
+    authorize(user, record.team_id, write=write)
+    return record
+
+
+def assert_valid_owner(db: Session, team_id: str, owner_id: str) -> m.User:
+    """Owners must be an Admin or Team Member of that team (the DB enforces membership; the role check lives here)."""
+    from .errors import invalid
+
+    owner = db.get(m.User, owner_id)
+    member = db.get(m.Membership, {"team_id": team_id, "user_id": owner_id})
+    if owner is None or member is None or owner.role == "observer":
+        raise invalid("invalid_owner", "owner must be an Admin or Team Member of this team")
+    return owner
