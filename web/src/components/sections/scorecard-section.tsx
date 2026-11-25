@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -97,9 +98,14 @@ function ScoreCell({ teamId, row, cell, canWrite, prominent }: { teamId: string;
   const label = `${row.name}, week of ${formatDay(cell.week_start)}: ${cell.value ?? "no score"} — ${s.label}`;
 
   function commit() {
-    const v = draft.trim();
+    const v = draft.trim().replace(",", ".");
     setEditing(false);
-    if (v !== "" && v !== String(cell.value ?? "")) save.mutate(v);
+    if (v === "" || v === String(cell.value ?? "")) return;
+    if (!/^-?\d+(\.\d{1,4})?$/.test(v)) {
+      toast.error(`“${draft.trim()}” isn't a number. Scores take up to 4 decimal places.`);
+      return;
+    }
+    save.mutate(v);
   }
 
   if (editing) {

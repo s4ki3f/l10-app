@@ -4,9 +4,9 @@
 - **Choice.** Store facts and compute statuses. Seed ids are the primary keys.
   - A week is the `date` of its Chicago Monday, a due date is a plain `date`, and a moment is UTC `timestamptz`.
   - An Issue's source is a real foreign key, `source_measurable_id`, plus `source_week`, with a CHECK requiring both or neither. A To-Do links back with `source_issue_id`.
-  - Postgres holds every rule it can: one score per cell; one unsolved Issue per cell and one live meeting per team (partial unique indexes); owners must belong to the team and only attendees rate (composite FKs); CHECKs on ranges, Monday weeks, solved ⇔ note and goal shape.
+  - Postgres holds every rule it can: one score per cell; one unsolved Issue per cell and one live meeting per team (partial unique indexes); only attendees rate (composite FK); CHECKs on ranges, Monday weeks, solved ⇔ note and goal shape.
 - **Rejected.** A JSON source field, which can't be indexed or kept unique. Stored statuses, which go stale.
-- **Cost.** Statuses are recomputed per read; at scale they'd be cached per (team, week).
+- **Cost.** Statuses are recomputed per read; at scale they'd be cached per (team, week). Who may own (any Admin, or a Team Member of the team) spans users and memberships, so the API guard checks it, proven by API tests.
 
 **2. API design.**
 - **Choice.**

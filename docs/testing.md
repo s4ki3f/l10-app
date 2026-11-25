@@ -5,8 +5,8 @@ One command, unattended: **`make test`** (needs Docker, `uv`, `pnpm`). It runs e
 | Layer | Where | What it proves | Count |
 |---|---|---|---|
 | Rule tests | `api/tests/rules` | every rule in 2.6 with its boundary cases, one named test per seed trap; the full rules report == a hand-worked answer key; also at a summer date and "as of" Nov 1 | 47 |
-| DB tests | `api/tests/db` | Postgres itself rejects invalid rows (ranges, Monday weeks, solved ⇔ note, one open Issue per cell, one live meeting per team, owners in team, only attendees rate); seed and reset are idempotent | 22 |
-| API tests | `api/tests/api` | 401 / 404 (other team) / 403 (observer write) on every team-scoped route, walked from OpenAPI; concurrent Make it an Issue → one Issue; concurrent Starts → one meeting; meeting rules and timer; a live uvicorn SSE test (change reaches another user's stream < 1 s, other teams never hear it); Team page values vs the answer key | 139 |
+| DB tests | `api/tests/db` | Postgres itself rejects invalid rows (ranges, Monday weeks, solved ⇔ note, one open Issue per cell, one live meeting per team, owners are real users, only attendees rate); seed and reset are idempotent | 22 |
+| API tests | `api/tests/api` | 401 / 404 (other team) / 403 (observer write) on every team-scoped route, walked from OpenAPI; concurrent Make it an Issue → one Issue; concurrent Starts → one meeting; meeting rules and timer; a live uvicorn SSE test (change reaches another user's stream < 1 s, other teams never hear it); owners (any Admin, or a Team Member of the team); Team page values vs the answer key | 142 |
 | End-to-end | `web/e2e` | two browsers: the facilitator advances Scorecard → IDS → Conclude and the follower follows within 2 s, both rate, end → follower sees the summary; refresh mid-meeting recovers section + timer; observer is read-only | 3 |
 
 ## Fixture strategy

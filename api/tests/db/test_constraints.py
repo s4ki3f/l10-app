@@ -10,9 +10,12 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 from app.db.load import load_dataset
+from app.db.seed import load_seed, reset_to_seed
 from app.rules.report import build_report
 from app.rules.weeks import parse_utc
 from sqlalchemy.orm import Session
+
+from tests.conftest import SEED
 
 KEY = json.loads((Path(__file__).parents[1] / "rules" / "answer_key.json").read_text())
 NOW = parse_utc("2026-11-11T15:00:00Z")
@@ -68,8 +71,9 @@ class TestIssues:
         # i6 (m4 / Oct 26) is solved, so the cell can raise a fresh Issue
         accepts(db, issue_sql(source_measurable_id="'m4'", source_week="'2026-10-26'"))
 
-    def test_owner_must_belong_to_the_team(self, db):
-        rejects(db, "INSERT INTO issues (id, team_id, title, owner_id, created_at) VALUES ('ix','team_lead','x','u6',now())")
+    def test_owner_must_be_a_real_user(self, db):
+        # who may own in a team (Admins anywhere, Team Members in their teams) is the API guard's job
+        rejects(db, "INSERT INTO issues (id, team_id, title, owner_id, created_at) VALUES ('ix','team_lead','x','u999',now())")
 
 
 class TestScoresAndGoals:
@@ -118,9 +122,6 @@ def test_rules_report_from_database_matches_answer_key(db):
 
 
 def test_seed_is_safe_to_rerun(db):
-    from tests.conftest import SEED
-    from app.db.seed import load_seed
-
     before = db.execute(text("SELECT count(*) FROM scores")).scalar()
     db.execute(text("UPDATE scores SET value = 999 WHERE measurable_id = 'm1' AND week_start = '2026-11-02'"))
     load_seed(db, SEED)
@@ -130,9 +131,6 @@ def test_seed_is_safe_to_rerun(db):
 
 
 def test_reset_restores_exactly_the_seed(db):
-    from tests.conftest import SEED
-    from app.db.seed import reset_to_seed
-
     def snapshot():
         return {t: db.execute(text(f"SELECT count(*) FROM {t}")).scalar()
                 for t in ("issues", "todos", "scores", "meetings", "meeting_attendees", "meeting_ratings")}

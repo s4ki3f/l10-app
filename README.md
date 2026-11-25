@@ -16,7 +16,7 @@ Open **http://localhost:3000**, pick a seeded user and open a second browser (or
 
 ## Test
 ```bash
-make test     # every layer, unattended: 208 pytest (rules, DB, API) + 3 Playwright two-browser tests
+make test     # every layer, unattended: 211 pytest (rules, DB, API) + 3 Playwright two-browser tests
 ```
 Requires Docker, [uv](https://docs.astral.sh/uv/) and pnpm. `make test-api` runs only pytest and `make e2e` only Playwright. **[docs/testing.md](docs/testing.md)** covers the fixture and clock strategy and the committed failure trace (`docs/artifacts/`).
 
@@ -35,7 +35,7 @@ See **[docs/decisions.md](docs/decisions.md)** (one page): the data model and so
 - **"As of now".** At any `APP_NOW`, things done, solved or created after it haven't happened yet: the To-Do doesn't count as done, the Issue is still open, and a meeting that ended later isn't reported.
 - **Current week's To-Do completion.** The current week is reported like any other week (Nov 9: 3 due, 0 done, 0%). Only a week with nothing due is `null`.
 - **Access.** A user who isn't on a team gets **404** for its data (ids don't leak). An Observer writing in their own team gets **403**.
-- **Owners.** Owners must be an Admin or Team Member *of that team*. Admins can act in every team but own items only where they're members.
+- **Owners.** Any Admin (Admins can do everything a Team Member can, in every team), or a Team Member of that team. Owner pickers list the team's members plus every Admin; Observers own nothing.
 - **Make it an Issue** works on an off-track cell inside the 13-week Scorecard. If the cell already has an unsolved Issue, that Issue is returned (200).
 - **Scores.** Scores can be entered for any of the 13 weeks, including the current one; last save wins.
 - **Meeting summaries.** Issues solved and To-Dos created are counted by time window `[started_at, ended_at]`, as with the seeded meetings, so a Team-page change made during a live meeting counts toward it.

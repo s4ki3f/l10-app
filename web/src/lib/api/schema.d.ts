@@ -96,7 +96,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The team's members (for owner pickers; Observers can't own anything) */
+        /** The team's members plus every Admin (Admins act in every team). Owner pickers drop Observers. */
         get: operations["team_members_teams__team_id__members_get"];
         put?: never;
         post?: never;

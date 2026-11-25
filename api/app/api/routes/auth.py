@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ...db import models as m
-from ..deps import SESSION_COOKIE, CurrentUser, current_user, get_db, sign_session
+from ..deps import SESSION_COOKIE, CurrentUser, current_user, get_db, sign_session, team_reader
 from ..errors import AppError
 from ..schemas import LoginIn, MeOut, TeamOut, UserOut
 
@@ -44,19 +44,15 @@ def me(user: CurrentUser = Depends(current_user), db: Session = Depends(get_db))
 
 @router.get("/teams/{team_id}", response_model=TeamOut, summary="One team you can see (404 otherwise)")
 def get_team(team_id: str, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db)):
-    from ..deps import team_reader
-
     team = team_reader(team_id, user, db)
     return TeamOut(id=team.id, name=team.name)
 
 
 @router.get("/teams/{team_id}/members", response_model=list[UserOut],
-            summary="The team's members (for owner pickers; Observers can't own anything)")
+            summary="The team's members plus every Admin (Admins act in every team). Owner pickers drop Observers.")
 def team_members(team_id: str, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db)):
-    from ..deps import team_reader
-
     team = team_reader(team_id, user, db)
+    in_team = select(m.Membership.user_id).where(m.Membership.team_id == team.id)
     return db.scalars(
-        select(m.User).join(m.Membership, m.Membership.user_id == m.User.id)
-        .where(m.Membership.team_id == team.id).order_by(m.User.name)
+        select(m.User).where((m.User.id.in_(in_team)) | (m.User.role == "admin")).order_by(m.User.name)
     ).all()

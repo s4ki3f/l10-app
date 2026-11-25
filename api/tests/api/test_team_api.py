@@ -1,8 +1,14 @@
 """Team page API (brief 2.5): Scorecard, Issues, To-Dos, Rocks. Values cross-checked with the answer key."""
 import json
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
+
+from app.main import app
+from app.rules.clock import FrozenClock
+
+from .conftest import NOW
 
 KEY = json.loads((Path(__file__).parents[1] / "rules" / "answer_key.json").read_text())["teams"]
 
@@ -165,12 +171,6 @@ class TestRocks:
 
     def test_only_the_current_quarters_rocks(self, as_user):
         # every seeded Rock is Q4 2026; in Q3 the list must be empty, in Q1 2027 too
-        from datetime import timedelta
-
-        from app.main import app
-        from app.rules.clock import FrozenClock
-        from .conftest import NOW
-
         c = as_user("u3")
         for delta in (timedelta(days=-90), timedelta(days=60)):
             app.state.clock = FrozenClock(NOW + delta)
@@ -188,3 +188,5 @@ def test_team_members_for_owner_pickers(as_user):
     body = as_user("u2").get("/teams/team_lead/members").json()
     assert [(u["id"], u["role"]) for u in body] == [
         ("u1", "admin"), ("u2", "team_member"), ("u3", "team_member"), ("u4", "team_member"), ("u5", "observer")]
+    ops = {u["id"] for u in as_user("u8").get("/teams/team_ops/members").json()}
+    assert ops == {"u1", "u4", "u8", "u9"}  # members + every Admin

@@ -88,7 +88,8 @@ export function useApiMutation<V, R>(
     },
     onError: (e) => {
       if (e instanceof ApiError && opts.quiet?.(e)) return;
-      toast.error(e instanceof ApiError ? e.message : "Something went wrong");
+      // validation errors carry per-field messages; show the first one instead of the generic summary
+      toast.error(e instanceof ApiError ? (e.fields[0]?.message ?? e.message) : "Something went wrong");
     },
   });
 }

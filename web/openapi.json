@@ -198,7 +198,7 @@
     "tags": [
      "auth"
     ],
-    "summary": "The team's members (for owner pickers; Observers can't own anything)",
+    "summary": "The team's members plus every Admin (Admins act in every team). Owner pickers drop Observers.",
     "operationId": "team_members_teams__team_id__members_get",
     "parameters": [
      {

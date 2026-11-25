@@ -83,6 +83,10 @@ class TestMakeItAnIssue:
     def test_other_team_is_404(self, as_user):
         assert as_user("u6").post(URL.format(m="m1", w="2026-10-26")).status_code == 404
 
+    def test_admin_outside_the_team_can_make_it_an_issue(self, as_user):
+        r = as_user("u1").post(URL.format(m="m7", w="2026-10-12"))  # Ops, 3 late shipments > 2
+        assert (r.status_code, r.json()["owner"]["id"]) == (201, "u1")
+
     def test_unknown_measurable_is_404(self, as_user):
         assert as_user("u2").post(URL.format(m="m999", w="2026-10-26")).status_code == 404
 

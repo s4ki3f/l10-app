@@ -2,10 +2,9 @@
 
 Every rule the database can hold, it holds:
 - one score per cell, one unsolved Issue per source cell, one live meeting per team;
-- owners must belong to the team (composite FK to memberships);
+- owners are real users (FK); "Admin, or a non-Observer member of the team" spans tables, so the API guard checks it;
 - only attendees can rate (composite FK to meeting_attendees);
 - enums, ranges, Monday weeks, solved ⇔ note, source both-or-neither, goal shape.
-What it can't hold cheaply (an owner's role is not observer) the API checks.
 
 Seed ids (u1, m1, t12 …) are the primary keys; new rows get a prefixed generated id.
 """
@@ -77,8 +76,8 @@ class Membership(Base):
 
 
 def _owner_fk() -> ForeignKeyConstraint:
-    """(team_id, owner_id) must be a membership: you can only own things in your own team."""
-    return ForeignKeyConstraint(["team_id", "owner_id"], ["memberships.team_id", "memberships.user_id"])
+    """Owners are users. Who may own in a team (Admins anywhere, Team Members in their teams) is checked by the API."""
+    return ForeignKeyConstraint(["owner_id"], ["users.id"])
 
 
 class Measurable(Base):

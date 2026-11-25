@@ -114,9 +114,18 @@ class TestOwners:
         r = as_user("u2").post("/issues/i1/todos", json={"title": "x", "owner_id": "u6"})
         assert (r.status_code, error_code(r)) == (422, "invalid_owner")
 
-    def test_admin_not_in_team_cannot_own_there(self, as_user):
-        # decision: Admins act in every team but own only where they are members
-        r = as_user("u1").post("/teams/team_ops/issues", json={"title": "x"})
+    def test_admin_owns_in_every_team(self, as_user):
+        # brief 2.4: an Admin can do everything a Team Member can, in every team (u1 is only in Leadership)
+        c = as_user("u1")
+        r = c.post("/teams/team_ops/issues", json={"title": "Admin raises it"})
+        assert (r.status_code, r.json()["owner"]["id"]) == (201, "u1")
+        assert c.post("/issues/i9/todos", json={"title": "x", "owner_id": "u1"}).status_code == 201
+
+    def test_team_member_can_assign_an_admin(self, as_user):
+        assert as_user("u8").post("/issues/i9/todos", json={"title": "x", "owner_id": "u1"}).status_code == 201
+
+    def test_team_member_of_another_team_cannot_own_here(self, as_user):
+        r = as_user("u8").post("/issues/i9/todos", json={"title": "x", "owner_id": "u6"})  # u6 is Sales only
         assert (r.status_code, error_code(r)) == (422, "invalid_owner")
 
     def test_todo_from_issue_is_due_in_7_days_and_linked(self, as_user):

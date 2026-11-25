@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from ..db import models as m
 from ..db.session import session_factory
 from ..rules.clock import Clock
-from .errors import forbidden, not_found, unauthenticated
+from .errors import forbidden, invalid, not_found, unauthenticated
 
 SESSION_COOKIE = "l10_session"
 _DEV_SECRET = "dev-only-secret-change-me"
@@ -133,11 +133,12 @@ def load_in_team(db: Session, model, record_id, user: CurrentUser, *, write: boo
 
 
 def assert_valid_owner(db: Session, team_id: str, owner_id: str) -> m.User:
-    """Owners must be an Admin or Team Member of that team (the DB enforces membership; the role check lives here)."""
-    from .errors import invalid
-
+    """Owners: any Admin (Admins can do everything a Team Member can, in every team), or a Team Member of this team.
+    Observers own nothing. This spans users and memberships, so it lives here rather than in a CHECK."""
     owner = db.get(m.User, owner_id)
-    member = db.get(m.Membership, {"team_id": team_id, "user_id": owner_id})
-    if owner is None or member is None or owner.role == "observer":
-        raise invalid("invalid_owner", "owner must be an Admin or Team Member of this team")
+    if owner is not None and owner.role == "admin":
+        return owner
+    member = owner is not None and db.get(m.Membership, {"team_id": team_id, "user_id": owner_id}) is not None
+    if not member or owner.role != "team_member":
+        raise invalid("invalid_owner", "owner must be an Admin, or a Team Member of this team")
     return owner
