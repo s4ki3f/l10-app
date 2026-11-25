@@ -81,3 +81,78 @@ class TodoOut(BaseModel):
     created_at: datetime
     overdue: bool
     source_issue: PersonRef | None = Field(None, description="The Issue this To-Do came from (id and title)")
+
+
+# ---------- meetings ----------
+
+Section = Literal["scorecard", "ids", "conclude"]
+
+
+class AgendaItem(BaseModel):
+    key: Section
+    title: str
+    minutes: int
+
+
+class AttendeeOut(BaseModel):
+    id: str
+    name: str
+    role: str
+
+
+class RatingOut(BaseModel):
+    user_id: str
+    rating: int
+
+
+class MeetingState(BaseModel):
+    """Everything a browser needs to render the meeting. The timer is derived, never counted down:
+    elapsed = server_now - section_started_at. Clients add their own clock offset from server_now."""
+    id: str
+    team_id: str
+    facilitator: PersonRef
+    started_at: datetime
+    ended_at: datetime | None
+    section: Section
+    section_started_at: datetime
+    server_now: datetime
+    elapsed_seconds: int
+    section_limit_seconds: int
+    over_time: bool
+    agenda: list[AgendaItem]
+    attendees: list[AttendeeOut]
+    ratings: list[RatingOut]
+    average_rating: float | None
+    new_todos: list[TodoOut] = Field(description="To-Dos created since the meeting started (shown in Conclude)")
+
+
+class ActiveMeetingOut(BaseModel):
+    meeting: MeetingState | None
+    server_now: datetime
+
+
+class AdvanceIn(Strict):
+    from_section: Section = Field(description="The section you are looking at; a stale click (double-click, two tabs) gets 409")
+
+
+class RatingIn(Strict):
+    rating: Annotated[int, Field(ge=1, le=10)]
+
+
+class SummaryMeasurable(BaseModel):
+    id: str
+    name: str
+    status: Literal["on_track", "off_track", "pending"]
+
+
+class SummaryOut(BaseModel):
+    meeting_id: str
+    team_id: str
+    started_at: datetime
+    ended_at: datetime
+    scorecard_week: date
+    measurable_status: list[SummaryMeasurable]
+    issues_solved: list[PersonRef] = Field(description="id and title")
+    todos_created: list[PersonRef] = Field(description="id and title")
+    attendees: list[AttendeeOut]
+    rating: float | None

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from ...db import models as m
 from ...db.load import issue_of, todo_of
+from ...realtime import publish
 from ...rules import engine
 from ...rules.weeks import local_date
 from ..deps import (
@@ -82,6 +83,8 @@ def create_issue(
     assert_valid_owner(db, team.id, user.id)
     issue = m.Issue(id=m.new_id("i"), team_id=team.id, title=body.title, owner_id=user.id, priority=body.priority, created_at=at)
     db.add(issue)
+    db.flush()
+    publish(db, team.id, "issues")
     db.commit()
     return issues_out(db, [issue])[0]
 
@@ -102,6 +105,8 @@ def add_todo(
         due_date=local_date(at) + timedelta(days=TODO_DUE_DAYS), created_at=at, source_issue_id=issue.id,
     )
     db.add(todo)
+    db.flush()
+    publish(db, issue.team_id, "todos")
     db.commit()
     return todos_out(db, [todo], at)[0]
 

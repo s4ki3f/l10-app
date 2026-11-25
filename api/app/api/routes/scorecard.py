@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from ...db import models as m
 from ...db.load import goal_of
+from ...realtime import publish
 from ...rules import engine
 from ...rules.weeks import scorecard_weeks, week_of
 from ..deps import CurrentUser, assert_valid_owner, current_user, get_db, load_in_team, now
@@ -87,6 +88,8 @@ def make_it_an_issue(
             .returning(m.Issue.id)
         )
         inserted = db.execute(stmt).scalar()
+        if inserted:
+            publish(db, measurable.team_id, "issues")
         db.commit()
         if inserted:
             return issues_out(db, [db.get(m.Issue, inserted)])[0]
