@@ -48,3 +48,15 @@ def get_team(team_id: str, user: CurrentUser = Depends(current_user), db: Sessio
 
     team = team_reader(team_id, user, db)
     return TeamOut(id=team.id, name=team.name)
+
+
+@router.get("/teams/{team_id}/members", response_model=list[UserOut],
+            summary="The team's members (for owner pickers; Observers can't own anything)")
+def team_members(team_id: str, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db)):
+    from ..deps import team_reader
+
+    team = team_reader(team_id, user, db)
+    return db.scalars(
+        select(m.User).join(m.Membership, m.Membership.user_id == m.User.id)
+        .where(m.Membership.team_id == team.id).order_by(m.User.name)
+    ).all()

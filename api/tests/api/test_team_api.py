@@ -182,3 +182,9 @@ class TestRocks:
         assert [m["id"] for m in r2["milestones"] if m["past_due"]] == ["ms5"]
         r1 = next(r for r in as_user("u3").get("/teams/team_lead/rocks").json() if r["id"] == "r1")
         assert [m["past_due"] for m in r1["milestones"]] == [False, False, False]  # ms2 due today is not past due
+
+
+def test_team_members_for_owner_pickers(as_user):
+    body = as_user("u2").get("/teams/team_lead/members").json()
+    assert [(u["id"], u["role"]) for u in body] == [
+        ("u1", "admin"), ("u2", "team_member"), ("u3", "team_member"), ("u4", "team_member"), ("u5", "observer")]

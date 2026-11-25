@@ -1,0 +1,2759 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "L10 API",
+  "description": "Scorecard, Rocks, To-Dos, Issues and the Level 10 Meeting. Every error is {\"error\": {\"code\", \"message\"}}. Outsiders get 404, observers writing get 403.",
+  "version": "0.1.0"
+ },
+ "paths": {
+  "/auth/users": {
+   "get": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Seeded users for the sign-in switcher",
+    "operationId": "list_users_auth_users_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/UserOut"
+         },
+         "type": "array",
+         "title": "Response List Users Auth Users Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/auth/login": {
+   "post": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Sign in as a seeded user; sets the session cookie",
+    "operationId": "login_auth_login_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LoginIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UserOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/auth/logout": {
+   "post": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Clear the session cookie",
+    "operationId": "logout_auth_logout_post",
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     }
+    }
+   }
+  },
+  "/me": {
+   "get": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Who you are and which teams you can open",
+    "operationId": "me_me_get",
+    "parameters": [
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MeOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/teams/{team_id}": {
+   "get": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "One team you can see (404 otherwise)",
+    "operationId": "get_team_teams__team_id__get",
+    "parameters": [
+     {
+      "name": "team_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Team Id"
+      }
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TeamOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/teams/{team_id}/members": {
+   "get": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "The team's members (for owner pickers; Observers can't own anything)",
+    "operationId": "team_members_teams__team_id__members_get",
+    "parameters": [
+     {
+      "name": "team_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Team Id"
+      }
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/UserOut"
+         },
+         "title": "Response Team Members Teams  Team Id  Members Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/teams/{team_id}/issues": {
+   "get": {
+    "tags": [
+     "issues"
+    ],
+    "summary": "Unsolved Issues in Issue order, or solved Issues newest first",
+    "operationId": "list_issues_teams__team_id__issues_get",
+    "parameters": [
+     {
+      "name": "team_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Team Id"
+      }
+     },
+     {
+      "name": "state",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "pattern": "^(open|solved)$",
+       "default": "open",
+       "title": "State"
+      }
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/IssueOut"
+         },
+         "title": "Response List Issues Teams  Team Id  Issues Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "issues"
+    ],
+    "summary": "Create an Issue owned by you",
+    "operationId": "create_issue_teams__team_id__issues_post",
+    "parameters": [
+     {
+      "name": "team_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Team Id"
+      }
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/IssueCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/IssueOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/issues/{issue_id}/todos": {
+   "post": {
+    "tags": [
+     "issues"
+    ],
+    "summary": "Add a To-Do to an Issue: due in 7 days, owner from the team's Admins and Team Members",
+    "operationId": "add_todo_issues__issue_id__todos_post",
+    "parameters": [
+     {
+      "name": "issue_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Issue Id"
+      }
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TodoCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TodoOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/teams/{team_id}/todos": {
+   "get": {
+    "tags": [
+     "issues"
+    ],
+    "summary": "The team's To-Dos by due date (overdue flagged) and the last closed week's completion rate",
+    "operationId": "list_todos_teams__team_id__todos_get",
+    "parameters": [
+     {
+      "name": "team_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Team Id"
+      }
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TodoList"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/issues/{issue_id}": {
+   "patch": {
+    "tags": [
+     "issues"
+    ],
+    "summary": "Set or clear an unsolved Issue's priority",
+    "operationId": "set_priority_issues__issue_id__patch",
+    "parameters": [
+     {
+      "name": "issue_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Issue Id"
+      }
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/IssuePatch"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/IssueOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/issues/{issue_id}/solve": {
+   "post": {
+    "tags": [
+     "issues"
+    ],
+    "summary": "Solve an Issue; a resolution note is required",
+    "operationId": "solve_issue_issues__issue_id__solve_post",
+    "parameters": [
+     {
+      "name": "issue_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Issue Id"
+      }
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SolveIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/IssueOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/todos/{todo_id}/done": {
+   "post": {
+    "tags": [
+     "issues"
+    ],
+    "summary": "Mark a To-Do done (done time = now)",
+    "operationId": "mark_done_todos__todo_id__done_post",
+    "parameters": [
+     {
+      "name": "todo_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Todo Id"
+      }
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TodoOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/todos/{todo_id}/undo": {
+   "post": {
+    "tags": [
+     "issues"
+    ],
+    "summary": "Undo: mark a To-Do not done",
+    "operationId": "undo_done_todos__todo_id__undo_post",
+    "parameters": [
+     {
+      "name": "todo_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Todo Id"
+      }
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TodoOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/measurables/{measurable_id}/weeks/{week}/issue": {
+   "post": {
+    "tags": [
+     "scorecard"
+    ],
+    "summary": "Make it an Issue: create the Issue for an off-track cell, or return the existing unsolved one",
+    "operationId": "make_it_an_issue_measurables__measurable_id__weeks__week__issue_post",
+    "parameters": [
+     {
+      "name": "measurable_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Measurable Id"
+      }
+     },
+     {
+      "name": "week",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "date",
+       "description": "The week's Monday, e.g. 2026-11-02",
+       "title": "Week"
+      },
+      "description": "The week's Monday, e.g. 2026-11-02"
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/IssueOut"
+        }
+       }
+      }
+     },
+     "200": {
+      "description": "An unsolved Issue already existed for this cell; it is returned"
+     },
+     "409": {
+      "description": "The cell is not off track"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/teams/{team_id}/scorecard": {
+   "get": {
+    "tags": [
+     "scorecard"
+    ],
+    "summary": "Measurables \u00d7 the last 13 weeks; every cell has its value, computed status and open Issue",
+    "operationId": "get_scorecard_teams__team_id__scorecard_get",
+    "parameters": [
+     {
+      "name": "team_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Team Id"
+      }
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ScorecardOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/measurables/{measurable_id}/weeks/{week}/score": {
+   "put": {
+    "tags": [
+     "scorecard"
+    ],
+    "summary": "Enter or edit a score (last save wins). Week must be inside the 13-week Scorecard.",
+    "operationId": "put_score_measurables__measurable_id__weeks__week__score_put",
+    "parameters": [
+     {
+      "name": "measurable_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Measurable Id"
+      }
+     },
+     {
+      "name": "week",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "date",
+       "description": "The week's Monday",
+       "title": "Week"
+      },
+      "description": "The week's Monday"
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ScoreIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CellOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/teams/{team_id}/meetings/active": {
+   "get": {
+    "tags": [
+     "meetings"
+    ],
+    "summary": "The team's live meeting, or null. Call on load, refresh and reconnect.",
+    "operationId": "active_meeting_teams__team_id__meetings_active_get",
+    "parameters": [
+     {
+      "name": "team_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Team Id"
+      }
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ActiveMeetingOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/meetings/{meeting_id}": {
+   "get": {
+    "tags": [
+     "meetings"
+    ],
+    "summary": "A meeting's current state",
+    "operationId": "get_meeting_meetings__meeting_id__get",
+    "parameters": [
+     {
+      "name": "meeting_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Meeting Id"
+      }
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MeetingState"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/teams/{team_id}/meetings": {
+   "post": {
+    "tags": [
+     "meetings"
+    ],
+    "summary": "Start the Level 10 Meeting (you facilitate). If one is already live you join it (200).",
+    "operationId": "start_meeting_teams__team_id__meetings_post",
+    "parameters": [
+     {
+      "name": "team_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Team Id"
+      }
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MeetingState"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/meetings/{meeting_id}/join": {
+   "post": {
+    "tags": [
+     "meetings"
+    ],
+    "summary": "Join a live meeting (anyone who can read the team, Observers included)",
+    "operationId": "join_meeting_meetings__meeting_id__join_post",
+    "parameters": [
+     {
+      "name": "meeting_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Meeting Id"
+      }
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MeetingState"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/meetings/{meeting_id}/advance": {
+   "post": {
+    "tags": [
+     "meetings"
+    ],
+    "summary": "Facilitator only: move to the next agenda section",
+    "operationId": "advance_meeting_meetings__meeting_id__advance_post",
+    "parameters": [
+     {
+      "name": "meeting_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Meeting Id"
+      }
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AdvanceIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MeetingState"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/meetings/{meeting_id}/end": {
+   "post": {
+    "tags": [
+     "meetings"
+    ],
+    "summary": "Facilitator only: end the meeting",
+    "operationId": "end_meeting_meetings__meeting_id__end_post",
+    "parameters": [
+     {
+      "name": "meeting_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Meeting Id"
+      }
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MeetingState"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/meetings/{meeting_id}/rating": {
+   "put": {
+    "tags": [
+     "meetings"
+    ],
+    "summary": "Rate the meeting 1\u201310 during Conclude (attending Admins and Team Members); change it until the end",
+    "operationId": "rate_meeting_meetings__meeting_id__rating_put",
+    "parameters": [
+     {
+      "name": "meeting_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Meeting Id"
+      }
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RatingIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MeetingState"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/meetings/{meeting_id}/summary": {
+   "get": {
+    "tags": [
+     "meetings"
+    ],
+    "summary": "An ended meeting's summary (seeded meetings included); 409 while it is live",
+    "operationId": "meeting_summary_meetings__meeting_id__summary_get",
+    "parameters": [
+     {
+      "name": "meeting_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Meeting Id"
+      }
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SummaryOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/teams/{team_id}/events": {
+   "get": {
+    "tags": [
+     "realtime"
+    ],
+    "summary": "Live change hints for a team (text/event-stream). Refetch the named topic when one arrives.",
+    "operationId": "team_events_teams__team_id__events_get",
+    "parameters": [
+     {
+      "name": "team_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Team Id"
+      }
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "text/event-stream": {}
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/teams/{team_id}/rocks": {
+   "get": {
+    "tags": [
+     "rocks"
+    ],
+    "summary": "Current quarter's Rocks with owner, computed status, progress and Milestones",
+    "operationId": "list_rocks_teams__team_id__rocks_get",
+    "parameters": [
+     {
+      "name": "team_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Team Id"
+      }
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/RockOut"
+         },
+         "title": "Response List Rocks Teams  Team Id  Rocks Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/health": {
+   "get": {
+    "tags": [
+     "ops"
+    ],
+    "summary": "Liveness plus database reachability and the app clock",
+    "operationId": "health_health_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "type": "object",
+         "title": "Response Health Health Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "schemas": {
+   "ActiveMeetingOut": {
+    "properties": {
+     "meeting": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/MeetingState"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "server_now": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Server Now"
+     }
+    },
+    "type": "object",
+    "required": [
+     "meeting",
+     "server_now"
+    ],
+    "title": "ActiveMeetingOut"
+   },
+   "AdvanceIn": {
+    "properties": {
+     "from_section": {
+      "type": "string",
+      "enum": [
+       "scorecard",
+       "ids",
+       "conclude"
+      ],
+      "title": "From Section",
+      "description": "The section you are looking at; a stale click (double-click, two tabs) gets 409"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "from_section"
+    ],
+    "title": "AdvanceIn"
+   },
+   "AgendaItem": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "enum": [
+       "scorecard",
+       "ids",
+       "conclude"
+      ],
+      "title": "Key"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "minutes": {
+      "type": "integer",
+      "title": "Minutes"
+     }
+    },
+    "type": "object",
+    "required": [
+     "key",
+     "title",
+     "minutes"
+    ],
+    "title": "AgendaItem"
+   },
+   "AttendeeOut": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "role": {
+      "type": "string",
+      "title": "Role"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "name",
+     "role"
+    ],
+    "title": "AttendeeOut"
+   },
+   "CellOut": {
+    "properties": {
+     "week_start": {
+      "type": "string",
+      "format": "date",
+      "title": "Week Start"
+     },
+     "value": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Value"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "on_track",
+       "off_track",
+       "pending"
+      ],
+      "title": "Status"
+     },
+     "open_issue_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Open Issue Id",
+      "description": "The unsolved Issue made from this cell, if any"
+     }
+    },
+    "type": "object",
+    "required": [
+     "week_start",
+     "value",
+     "status",
+     "open_issue_id"
+    ],
+    "title": "CellOut"
+   },
+   "CompletionOut": {
+    "properties": {
+     "week_start": {
+      "type": "string",
+      "format": "date",
+      "title": "Week Start"
+     },
+     "due": {
+      "type": "integer",
+      "title": "Due"
+     },
+     "done": {
+      "type": "integer",
+      "title": "Done"
+     },
+     "rate_percent": {
+      "type": "integer",
+      "title": "Rate Percent"
+     },
+     "meets_target": {
+      "type": "boolean",
+      "title": "Meets Target"
+     }
+    },
+    "type": "object",
+    "required": [
+     "week_start",
+     "due",
+     "done",
+     "rate_percent",
+     "meets_target"
+    ],
+    "title": "CompletionOut"
+   },
+   "GoalOut": {
+    "properties": {
+     "type": {
+      "type": "string",
+      "enum": [
+       "at_least",
+       "at_most",
+       "between",
+       "exactly"
+      ],
+      "title": "Type"
+     },
+     "value": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Value"
+     },
+     "min": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Min"
+     },
+     "max": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Max"
+     }
+    },
+    "type": "object",
+    "required": [
+     "type",
+     "value",
+     "min",
+     "max"
+    ],
+    "title": "GoalOut"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "type": "array",
+      "title": "Detail"
+     }
+    },
+    "type": "object",
+    "title": "HTTPValidationError"
+   },
+   "IssueCreate": {
+    "properties": {
+     "title": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title"
+     },
+     "priority": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "maximum": 5.0,
+        "minimum": 1.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Priority"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "title"
+    ],
+    "title": "IssueCreate"
+   },
+   "IssueOut": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "team_id": {
+      "type": "string",
+      "title": "Team Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "owner": {
+      "$ref": "#/components/schemas/PersonRef"
+     },
+     "priority": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Priority"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "solved_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Solved At"
+     },
+     "resolution_note": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Resolution Note"
+     },
+     "source": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/IssueSource"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "team_id",
+     "title",
+     "owner",
+     "priority",
+     "created_at",
+     "solved_at",
+     "resolution_note",
+     "source"
+    ],
+    "title": "IssueOut"
+   },
+   "IssuePatch": {
+    "properties": {
+     "priority": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "maximum": 5.0,
+        "minimum": 1.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Priority",
+      "description": "1\u20135, or null to clear"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "priority"
+    ],
+    "title": "IssuePatch"
+   },
+   "IssueSource": {
+    "properties": {
+     "measurable_id": {
+      "type": "string",
+      "title": "Measurable Id"
+     },
+     "measurable_name": {
+      "type": "string",
+      "title": "Measurable Name"
+     },
+     "week_start": {
+      "type": "string",
+      "format": "date",
+      "title": "Week Start"
+     }
+    },
+    "type": "object",
+    "required": [
+     "measurable_id",
+     "measurable_name",
+     "week_start"
+    ],
+    "title": "IssueSource"
+   },
+   "LoginIn": {
+    "properties": {
+     "user_id": {
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "User Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "user_id"
+    ],
+    "title": "LoginIn"
+   },
+   "MeOut": {
+    "properties": {
+     "user": {
+      "$ref": "#/components/schemas/UserOut"
+     },
+     "teams": {
+      "items": {
+       "$ref": "#/components/schemas/TeamOut"
+      },
+      "type": "array",
+      "title": "Teams",
+      "description": "Teams you can open: every team for Admins, your own teams otherwise"
+     },
+     "can_write": {
+      "type": "boolean",
+      "title": "Can Write"
+     }
+    },
+    "type": "object",
+    "required": [
+     "user",
+     "teams",
+     "can_write"
+    ],
+    "title": "MeOut"
+   },
+   "MeetingState": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "team_id": {
+      "type": "string",
+      "title": "Team Id"
+     },
+     "facilitator": {
+      "$ref": "#/components/schemas/PersonRef"
+     },
+     "started_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Started At"
+     },
+     "ended_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ended At"
+     },
+     "section": {
+      "type": "string",
+      "enum": [
+       "scorecard",
+       "ids",
+       "conclude"
+      ],
+      "title": "Section"
+     },
+     "section_started_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Section Started At"
+     },
+     "server_now": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Server Now"
+     },
+     "elapsed_seconds": {
+      "type": "integer",
+      "title": "Elapsed Seconds"
+     },
+     "section_limit_seconds": {
+      "type": "integer",
+      "title": "Section Limit Seconds"
+     },
+     "over_time": {
+      "type": "boolean",
+      "title": "Over Time"
+     },
+     "agenda": {
+      "items": {
+       "$ref": "#/components/schemas/AgendaItem"
+      },
+      "type": "array",
+      "title": "Agenda"
+     },
+     "attendees": {
+      "items": {
+       "$ref": "#/components/schemas/AttendeeOut"
+      },
+      "type": "array",
+      "title": "Attendees"
+     },
+     "ratings": {
+      "items": {
+       "$ref": "#/components/schemas/RatingOut"
+      },
+      "type": "array",
+      "title": "Ratings"
+     },
+     "average_rating": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Average Rating"
+     },
+     "new_todos": {
+      "items": {
+       "$ref": "#/components/schemas/TodoOut"
+      },
+      "type": "array",
+      "title": "New Todos",
+      "description": "To-Dos created since the meeting started (shown in Conclude)"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "team_id",
+     "facilitator",
+     "started_at",
+     "ended_at",
+     "section",
+     "section_started_at",
+     "server_now",
+     "elapsed_seconds",
+     "section_limit_seconds",
+     "over_time",
+     "agenda",
+     "attendees",
+     "ratings",
+     "average_rating",
+     "new_todos"
+    ],
+    "title": "MeetingState",
+    "description": "Everything a browser needs to render the meeting. The timer is derived, never counted down:\nelapsed = server_now - section_started_at. Clients add their own clock offset from server_now."
+   },
+   "MilestoneOut": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "due_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Due Date"
+     },
+     "done": {
+      "type": "boolean",
+      "title": "Done"
+     },
+     "past_due": {
+      "type": "boolean",
+      "title": "Past Due"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "title",
+     "due_date",
+     "done",
+     "past_due"
+    ],
+    "title": "MilestoneOut"
+   },
+   "PersonRef": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "name"
+    ],
+    "title": "PersonRef"
+   },
+   "RatingIn": {
+    "properties": {
+     "rating": {
+      "type": "integer",
+      "maximum": 10.0,
+      "minimum": 1.0,
+      "title": "Rating"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "rating"
+    ],
+    "title": "RatingIn"
+   },
+   "RatingOut": {
+    "properties": {
+     "user_id": {
+      "type": "string",
+      "title": "User Id"
+     },
+     "rating": {
+      "type": "integer",
+      "title": "Rating"
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id",
+     "rating"
+    ],
+    "title": "RatingOut"
+   },
+   "RockOut": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "owner": {
+      "$ref": "#/components/schemas/PersonRef"
+     },
+     "quarter": {
+      "type": "string",
+      "title": "Quarter"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "on_track",
+       "off_track",
+       "complete"
+      ],
+      "title": "Status"
+     },
+     "progress_percent": {
+      "type": "integer",
+      "title": "Progress Percent"
+     },
+     "milestones": {
+      "items": {
+       "$ref": "#/components/schemas/MilestoneOut"
+      },
+      "type": "array",
+      "title": "Milestones"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "title",
+     "owner",
+     "quarter",
+     "status",
+     "progress_percent",
+     "milestones"
+    ],
+    "title": "RockOut"
+   },
+   "ScoreIn": {
+    "properties": {
+     "value": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "string"
+       }
+      ],
+      "title": "Value"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "value"
+    ],
+    "title": "ScoreIn"
+   },
+   "ScorecardOut": {
+    "properties": {
+     "weeks": {
+      "items": {
+       "type": "string",
+       "format": "date"
+      },
+      "type": "array",
+      "title": "Weeks",
+      "description": "13 weeks, oldest first, ending with the current week"
+     },
+     "current_week": {
+      "type": "string",
+      "format": "date",
+      "title": "Current Week"
+     },
+     "last_closed_week": {
+      "type": "string",
+      "format": "date",
+      "title": "Last Closed Week"
+     },
+     "rows": {
+      "items": {
+       "$ref": "#/components/schemas/ScorecardRow"
+      },
+      "type": "array",
+      "title": "Rows"
+     }
+    },
+    "type": "object",
+    "required": [
+     "weeks",
+     "current_week",
+     "last_closed_week",
+     "rows"
+    ],
+    "title": "ScorecardOut"
+   },
+   "ScorecardRow": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "unit": {
+      "type": "string",
+      "title": "Unit"
+     },
+     "owner": {
+      "$ref": "#/components/schemas/PersonRef"
+     },
+     "goal": {
+      "$ref": "#/components/schemas/GoalOut"
+     },
+     "cells": {
+      "items": {
+       "$ref": "#/components/schemas/CellOut"
+      },
+      "type": "array",
+      "title": "Cells"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "name",
+     "unit",
+     "owner",
+     "goal",
+     "cells"
+    ],
+    "title": "ScorecardRow"
+   },
+   "SolveIn": {
+    "properties": {
+     "note": {
+      "type": "string",
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Note"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "note"
+    ],
+    "title": "SolveIn"
+   },
+   "SummaryMeasurable": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "on_track",
+       "off_track",
+       "pending"
+      ],
+      "title": "Status"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "name",
+     "status"
+    ],
+    "title": "SummaryMeasurable"
+   },
+   "SummaryOut": {
+    "properties": {
+     "meeting_id": {
+      "type": "string",
+      "title": "Meeting Id"
+     },
+     "team_id": {
+      "type": "string",
+      "title": "Team Id"
+     },
+     "started_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Started At"
+     },
+     "ended_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Ended At"
+     },
+     "scorecard_week": {
+      "type": "string",
+      "format": "date",
+      "title": "Scorecard Week"
+     },
+     "measurable_status": {
+      "items": {
+       "$ref": "#/components/schemas/SummaryMeasurable"
+      },
+      "type": "array",
+      "title": "Measurable Status"
+     },
+     "issues_solved": {
+      "items": {
+       "$ref": "#/components/schemas/PersonRef"
+      },
+      "type": "array",
+      "title": "Issues Solved",
+      "description": "id and title"
+     },
+     "todos_created": {
+      "items": {
+       "$ref": "#/components/schemas/PersonRef"
+      },
+      "type": "array",
+      "title": "Todos Created",
+      "description": "id and title"
+     },
+     "attendees": {
+      "items": {
+       "$ref": "#/components/schemas/AttendeeOut"
+      },
+      "type": "array",
+      "title": "Attendees"
+     },
+     "rating": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rating"
+     }
+    },
+    "type": "object",
+    "required": [
+     "meeting_id",
+     "team_id",
+     "started_at",
+     "ended_at",
+     "scorecard_week",
+     "measurable_status",
+     "issues_solved",
+     "todos_created",
+     "attendees",
+     "rating"
+    ],
+    "title": "SummaryOut"
+   },
+   "TeamOut": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "name"
+    ],
+    "title": "TeamOut"
+   },
+   "TodoCreate": {
+    "properties": {
+     "title": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title"
+     },
+     "owner_id": {
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Owner Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "title",
+     "owner_id"
+    ],
+    "title": "TodoCreate"
+   },
+   "TodoList": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/TodoOut"
+      },
+      "type": "array",
+      "title": "Items"
+     },
+     "last_closed_week": {
+      "type": "string",
+      "format": "date",
+      "title": "Last Closed Week"
+     },
+     "completion": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/CompletionOut"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Last closed week's completion rate; null when nothing was due"
+     }
+    },
+    "type": "object",
+    "required": [
+     "items",
+     "last_closed_week",
+     "completion"
+    ],
+    "title": "TodoList"
+   },
+   "TodoOut": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "team_id": {
+      "type": "string",
+      "title": "Team Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "owner": {
+      "$ref": "#/components/schemas/PersonRef"
+     },
+     "due_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Due Date"
+     },
+     "done_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Done At"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "overdue": {
+      "type": "boolean",
+      "title": "Overdue"
+     },
+     "source_issue": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/PersonRef"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The Issue this To-Do came from (id and title)"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "team_id",
+     "title",
+     "owner",
+     "due_date",
+     "done_at",
+     "created_at",
+     "overdue"
+    ],
+    "title": "TodoOut"
+   },
+   "UserOut": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "role": {
+      "type": "string",
+      "enum": [
+       "admin",
+       "team_member",
+       "observer"
+      ],
+      "title": "Role"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "name",
+     "role"
+    ],
+    "title": "UserOut"
+   },
+   "ValidationError": {
+    "properties": {
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Location"
+     },
+     "msg": {
+      "type": "string",
+      "title": "Message"
+     },
+     "type": {
+      "type": "string",
+      "title": "Error Type"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "ctx": {
+      "type": "object",
+      "title": "Context"
+     }
+    },
+    "type": "object",
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError"
+   }
+  }
+ }
+}
