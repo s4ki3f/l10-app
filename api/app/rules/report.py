@@ -1,4 +1,4 @@
-"""The rules report (format in docs/starter-README.md). Every value comes from engine.py."""
+"""The rules report, in the format given with the assessment (see README: Rules report). Every value comes from engine.py."""
 from datetime import datetime, timezone
 
 from . import engine
