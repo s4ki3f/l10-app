@@ -10,7 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
+import { keys } from "@/lib/keys";
 import type { Issue } from "@/lib/api/types";
 import { call, useApiMutation, useIssues, useMembers } from "@/lib/queries";
 import { formatDay, formatMoment } from "@/lib/time";
@@ -86,7 +89,16 @@ function PrioritySelect({ value, onChange, label = "Priority" }: { value: string
 
 function IssueRow({ teamId, issue, index, canWrite, current }: { teamId: string; issue: Issue; index: number; canWrite: boolean; current: boolean }) {
   const [dialog, setDialog] = useState<null | "solve" | "todo">(null);
-  const prio = useApiMutation(teamId, ["issues"], (v: string) => call.setPriority(issue.id, v === NONE ? null : Number(v)));
+  const qc = useQueryClient();
+  const prio = useApiMutation(teamId, ["issues"], (v: string) => call.setPriority(issue.id, v === NONE ? null : Number(v), issue.version), {
+    quiet: (e) => {
+      if (e.code !== "stale_write") return false;
+      const p = e.current?.priority;
+      toast.warning(`Someone changed this Issue to ${p ? `priority ${p}` : "no priority"} a moment ago. Your change wasn't saved.`);
+      qc.invalidateQueries({ queryKey: keys.topic(teamId, "issues") });
+      return true;
+    },
+  });
   const solved = !!issue.solved_at;
 
   return (

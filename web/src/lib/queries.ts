@@ -98,10 +98,11 @@ export function useApiMutation<V, R>(
 }
 
 export const call = {
-  putScore: (measurableId: string, week: string, value: string) =>
+  /** expectedVersion = the version on screen; a 409 stale_write means someone saved first */
+  putScore: (measurableId: string, week: string, value: string, expectedVersion: number) =>
     api.PUT("/measurables/{measurable_id}/weeks/{week}/score", {
       params: { path: { measurable_id: measurableId, week } },
-      body: { value },
+      body: { value, expected_version: expectedVersion },
     }).then(unwrap),
   makeIssue: (measurableId: string, week: string) =>
     api.POST("/measurables/{measurable_id}/weeks/{week}/issue", {
@@ -109,8 +110,11 @@ export const call = {
     }).then(unwrap),
   createIssue: (teamId: string, title: string, priority: number | null) =>
     api.POST("/teams/{team_id}/issues", { ...team(teamId), body: { title, priority } }).then(unwrap),
-  setPriority: (issueId: string, priority: number | null) =>
-    api.PATCH("/issues/{issue_id}", { params: { path: { issue_id: issueId } }, body: { priority } }).then(unwrap),
+  setPriority: (issueId: string, priority: number | null, expectedVersion: number) =>
+    api.PATCH("/issues/{issue_id}", {
+      params: { path: { issue_id: issueId } },
+      body: { priority, expected_version: expectedVersion },
+    }).then(unwrap),
   solve: (issueId: string, note: string) =>
     api.POST("/issues/{issue_id}/solve", { params: { path: { issue_id: issueId } }, body: { note } }).then(unwrap),
   addTodo: (issueId: string, title: string, ownerId: string) =>

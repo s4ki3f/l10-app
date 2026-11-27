@@ -16,7 +16,7 @@ Open **http://localhost:3000**, pick a seeded user and open a second browser (or
 
 ## Test
 ```bash
-make test     # every layer, unattended: 250 pytest (rules, DB, API) + 4 Playwright tests (the meeting test runs Chromium + Firefox)
+make test     # every layer, unattended: 263 pytest (rules, DB, API) + 5 Playwright tests (two-browser tests run Chromium + Firefox)
 ```
 Requires Docker, [uv](https://docs.astral.sh/uv/) and pnpm. `make test-api` runs only pytest and `make e2e` only Playwright. **[docs/testing.md](docs/testing.md)** covers the fixture and clock strategy and the committed failure trace (`docs/artifacts/`).
 
@@ -26,6 +26,9 @@ make rules-report                               # APP_NOW defaults to 2026-11-11
 APP_NOW=2026-11-23T15:00:00Z make rules-report  # any other date
 ```
 It reseeds a fresh database and prints the JSON for `APP_NOW`. Its output at the default date is committed as **[rules_report.json](rules_report.json)**. Every value comes from the same rule functions the API uses (`api/app/rules/`).
+
+## Bonus: lost-update protection
+Scores and Issues carry a `version`. The UI sends the version the user **saw when they started editing**; if someone saved in between, the save is refused with **409 `stale_write`** and the screen says who changed it and to what (*"Blake Brooks changed this to 2.5 a moment ago. Your 3.4 wasn't saved."*). The check is one conditional `UPDATE … WHERE version = :seen` (or an insert-if-absent for a new cell), so it holds under real concurrency: 8 simultaneous saves on one version, exactly one wins. API clients that omit `expected_version` keep the brief's last-save-wins.
 
 ## Decisions
 See **[docs/decisions.md](docs/decisions.md)** (one page): the data model and source links, API design, real-time transport and recovery, duplicate-free Make it an Issue, and frozen summaries.
@@ -37,14 +40,13 @@ See **[docs/decisions.md](docs/decisions.md)** (one page): the data model and so
 - **Access.** A user who isn't on a team gets **404** for its data (ids don't leak). An Observer writing in their own team gets **403**.
 - **Owners.** Any Admin (Admins can do everything a Team Member can, in every team), or a Team Member of that team. Owner pickers list the team's members plus every Admin; Observers own nothing.
 - **Make it an Issue** works on an off-track cell inside the 13-week Scorecard. If the cell already has an unsolved Issue, that Issue is returned (200).
-- **Scores.** Scores can be entered for any of the 13 weeks, including the current one; last save wins.
+- **Scores.** Scores can be entered for any of the 13 weeks, including the current one. The UI protects against lost updates (see Bonus); the API without `expected_version` is last-save-wins.
 - **Meeting summaries.** Issues solved and To-Dos created are counted by time window `[started_at, ended_at]`, as with the seeded meetings, so a Team-page change made during a live meeting counts toward it.
 - **Ratings** are given in Conclude by attending Admins and Team Members, and can be changed until the end.
 - **Advance** carries the section the facilitator saw. A stale double-click gets 409 rather than skipping a section.
 
 ## Known limitations
 - Summaries are computed on read, not frozen (see decision 5).
-- No lost-update protection for scores and priority (a bonus item); the next step is a version column with `If-Match`.
 - Scores and milestone completion carry no timestamps, so "as of now" can't hide them at earlier dates.
 - Security: no CSRF token (relies on a SameSite=Lax cookie and JSON-only bodies). Sessions are stateless and expire after 12 hours, so logout clears the browser's cookie but can't revoke a copied one. `SESSION_SECRET` has a development default, and `COOKIE_SECURE=1` turns on the Secure flag; set both outside local development.
 - No facilitator handoff, and no dark-mode toggle.

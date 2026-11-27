@@ -7,7 +7,7 @@ every other request (including ones arriving at the same instant) gets the winne
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, Path, Response, status
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -29,6 +29,15 @@ OPEN_CELL = text("solved_at IS NULL AND source_measurable_id IS NOT NULL")  # th
 def issue_title(measurable_name: str, week: date) -> str:
     """Matches the seed: 'New deals closed, week of Nov 2'."""
     return f"{measurable_name}, week of {week.strftime('%b')} {week.day}"
+
+
+def _stale_score(db: Session, measurable_id: str, week: date) -> AppError:
+    """409 with what's there now, so the client can show who changed it and to what."""
+    current = db.get(m.Score, {"measurable_id": measurable_id, "week_start": week})
+    by = db.get(m.User, current.updated_by) if current and current.updated_by else None
+    return AppError(409, "stale_write", "someone changed this score after you loaded it", current={
+        "value": float(current.value) if current else None, "version": current.version if current else 0,
+        "updated_by": by.name if by else None})
 
 
 def cell_week(week: date, at: datetime) -> date:
@@ -122,8 +131,9 @@ def get_scorecard(team: m.Team = Depends(team_reader), db: Session = Depends(get
     current = week_of(at)
     measurables = db.scalars(select(m.Measurable).where(m.Measurable.team_id == team.id).order_by(m.Measurable.id)).all()
     ids = [x.id for x in measurables]
-    scores = {(s.measurable_id, s.week_start): s.value for s in db.scalars(
-        select(m.Score).where(m.Score.measurable_id.in_(ids), m.Score.week_start.in_(weeks)))}
+    rows_ = db.scalars(select(m.Score).where(m.Score.measurable_id.in_(ids), m.Score.week_start.in_(weeks))).all()
+    scores = {(s.measurable_id, s.week_start): s.value for s in rows_}
+    versions = {(s.measurable_id, s.week_start): s.version for s in rows_}
     open_issues = {(i.source_measurable_id, i.source_week): i.id for i in db.scalars(
         select(m.Issue).where(m.Issue.source_measurable_id.in_(ids), m.open_as_of(at)))}
     owners = {u.id: u.name for u in db.scalars(select(m.User).where(m.User.id.in_({x.owner_id for x in measurables})))}
@@ -133,7 +143,7 @@ def get_scorecard(team: m.Team = Depends(team_reader), db: Session = Depends(get
         rows.append(ScorecardRow(
             id=x.id, name=x.name, unit=x.unit, owner=PersonRef(id=x.owner_id, name=owners[x.owner_id]),
             goal=GoalOut(type=x.goal_type, value=_num(x.goal_value), min=_num(x.goal_min), max=_num(x.goal_max)),
-            cells=[CellOut(week_start=w, value=_num(scores.get((x.id, w))),
+            cells=[CellOut(week_start=w, version=versions.get((x.id, w), 0), value=_num(scores.get((x.id, w))),
                            status=engine.measurable_status(goal, scores.get((x.id, w)), w, current),
                            open_issue_id=open_issues.get((x.id, w)))
                    for w in weeks],
@@ -153,14 +163,26 @@ def put_score(
 ):
     measurable = load_in_team(db, m.Measurable, measurable_id, user, write=True, what="measurable")
     week = cell_week(week, at)
-    db.execute(
-        insert(m.Score).values(measurable_id=measurable.id, week_start=week, value=body.value, updated_at=at, updated_by=user.id)
-        .on_conflict_do_update(index_elements=["measurable_id", "week_start"],
-                               set_={"value": body.value, "updated_at": at, "updated_by": user.id})
-    )
+    fields = {"value": body.value, "updated_at": at, "updated_by": user.id}
+    cell = (m.Score.measurable_id == measurable.id) & (m.Score.week_start == week)
+    ev = body.expected_version
+    if ev is None:  # last save wins (the brief's core behaviour)
+        version = db.execute(insert(m.Score).values(measurable_id=measurable.id, week_start=week, **fields)
+                             .on_conflict_do_update(index_elements=["measurable_id", "week_start"],
+                                                    set_={**fields, "version": m.Score.version + 1})
+                             .returning(m.Score.version)).scalar()
+    elif ev == 0:  # "I saw no score": only create it if nobody else did first
+        version = db.execute(insert(m.Score).values(measurable_id=measurable.id, week_start=week, **fields)
+                             .on_conflict_do_nothing().returning(m.Score.version)).scalar()
+    else:  # "I saw version ev": only overwrite that exact version
+        version = db.execute(update(m.Score).where(cell, m.Score.version == ev)
+                             .values(**fields, version=m.Score.version + 1).returning(m.Score.version)).scalar()
+    if version is None:
+        db.rollback()
+        raise _stale_score(db, measurable.id, week)
     publish(db, measurable.team_id, "scorecard")
     db.commit()
     issue = _open_issue(db, measurable.id, week, at)
-    return CellOut(week_start=week, value=float(body.value),
+    return CellOut(week_start=week, version=version, value=float(body.value),
                    status=engine.measurable_status(goal_of(measurable), body.value, week, week_of(at)),
                    open_issue_id=issue.id if issue else None)

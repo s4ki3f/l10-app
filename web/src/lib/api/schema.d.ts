@@ -514,6 +514,11 @@ export interface components {
              * Format: date
              */
             week_start: string;
+            /**
+             * Version
+             * @description 0 when there's no score yet; send back as expected_version
+             */
+            version: number;
             /** Value */
             value: number | null;
             /**
@@ -573,6 +578,11 @@ export interface components {
         IssueOut: {
             /** Id */
             id: string;
+            /**
+             * Version
+             * @description Send back as expected_version to change priority without overwriting someone else
+             */
+            version: number;
             /** Team Id */
             team_id: string;
             /** Title */
@@ -598,6 +608,8 @@ export interface components {
              * @description 1–5, or null to clear
              */
             priority: number | null;
+            /** Expected Version */
+            expected_version?: number | null;
         };
         /** IssueSource */
         IssueSource: {
@@ -738,6 +750,8 @@ export interface components {
         ScoreIn: {
             /** Value */
             value: number | string;
+            /** Expected Version */
+            expected_version?: number | null;
         };
         /** ScorecardOut */
         ScorecardOut: {
@@ -1020,6 +1034,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 team_id: string;
             };
             cookie?: {
@@ -1053,6 +1068,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 team_id: string;
             };
             cookie?: {
@@ -1088,6 +1104,7 @@ export interface operations {
             };
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 team_id: string;
             };
             cookie?: {
@@ -1121,6 +1138,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 team_id: string;
             };
             cookie?: {
@@ -1158,6 +1176,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 issue_id: string;
             };
             cookie?: {
@@ -1195,6 +1214,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 team_id: string;
             };
             cookie?: {
@@ -1228,6 +1248,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 issue_id: string;
             };
             cookie?: {
@@ -1265,6 +1286,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 issue_id: string;
             };
             cookie?: {
@@ -1302,6 +1324,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 todo_id: string;
             };
             cookie?: {
@@ -1335,6 +1358,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 todo_id: string;
             };
             cookie?: {
@@ -1368,6 +1392,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 measurable_id: string;
                 /** @description The week's Monday, e.g. 2026-11-02 */
                 week: string;
@@ -1417,6 +1442,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 team_id: string;
             };
             cookie?: {
@@ -1450,6 +1476,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 measurable_id: string;
                 /** @description The week's Monday */
                 week: string;
@@ -1489,6 +1516,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 team_id: string;
             };
             cookie?: {
@@ -1522,6 +1550,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 meeting_id: string;
             };
             cookie?: {
@@ -1555,6 +1584,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 team_id: string;
             };
             cookie?: {
@@ -1588,6 +1618,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 meeting_id: string;
             };
             cookie?: {
@@ -1621,6 +1652,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 meeting_id: string;
             };
             cookie?: {
@@ -1658,6 +1690,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 meeting_id: string;
             };
             cookie?: {
@@ -1691,6 +1724,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 meeting_id: string;
             };
             cookie?: {
@@ -1728,6 +1762,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 meeting_id: string;
             };
             cookie?: {
@@ -1761,6 +1796,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 team_id: string;
             };
             cookie?: {
@@ -1794,6 +1830,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
                 team_id: string;
             };
             cookie?: {

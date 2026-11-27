@@ -4,7 +4,9 @@ import type { paths } from "./schema";
 /** Same-origin client: Next.js forwards /api/* to FastAPI, so the session cookie just works. */
 export const api = createClient<paths>({ baseUrl: "/api", credentials: "same-origin" });
 
-export type ApiErrorBody = { error: { code: string; message: string; fields?: { field: string; message: string }[] } };
+export type ApiErrorBody = {
+  error: { code: string; message: string; fields?: { field: string; message: string }[]; current?: Record<string, unknown> };
+};
 
 export class ApiError extends Error {
   constructor(
@@ -12,6 +14,8 @@ export class ApiError extends Error {
     public code: string,
     message: string,
     public fields: { field: string; message: string }[] = [],
+    /** for 409 stale_write: what's stored now (value/priority, version, updated_by) */
+    public current: Record<string, unknown> | undefined = undefined,
   ) {
     super(message);
   }
@@ -26,6 +30,7 @@ export function unwrap<T>(result: { data?: T; error?: unknown; response: Respons
       body?.error?.code ?? "http_error",
       body?.error?.message ?? result.response.statusText,
       body?.error?.fields ?? [],
+      body?.error?.current,
     );
   }
   return result.data as T;

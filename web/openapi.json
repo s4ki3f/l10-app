@@ -149,8 +149,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Team Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "l10_session",
@@ -207,8 +210,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Team Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "l10_session",
@@ -269,8 +275,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Team Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "state",
@@ -340,8 +349,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Team Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "l10_session",
@@ -408,8 +420,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Issue Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "l10_session",
@@ -476,8 +491,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Team Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "l10_session",
@@ -534,8 +552,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Issue Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "l10_session",
@@ -602,8 +623,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Issue Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "l10_session",
@@ -670,8 +694,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Todo Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "l10_session",
@@ -728,8 +755,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Todo Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "l10_session",
@@ -786,8 +816,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Measurable Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "week",
@@ -862,8 +895,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Team Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "l10_session",
@@ -920,8 +956,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Measurable Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "week",
@@ -1000,8 +1039,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Team Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "l10_session",
@@ -1058,8 +1100,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Meeting Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "l10_session",
@@ -1116,8 +1161,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Team Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "l10_session",
@@ -1174,8 +1222,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Meeting Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "l10_session",
@@ -1232,8 +1283,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Meeting Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "l10_session",
@@ -1300,8 +1354,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Meeting Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "l10_session",
@@ -1358,8 +1415,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Meeting Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "l10_session",
@@ -1426,8 +1486,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Meeting Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "l10_session",
@@ -1484,8 +1547,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Team Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "l10_session",
@@ -1538,8 +1604,11 @@
       "required": true,
       "schema": {
        "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
        "title": "Team Id"
-      }
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
      },
      {
       "name": "l10_session",
@@ -1715,6 +1784,11 @@
       "format": "date",
       "title": "Week Start"
      },
+     "version": {
+      "type": "integer",
+      "title": "Version",
+      "description": "0 when there's no score yet; send back as expected_version"
+     },
      "value": {
       "anyOf": [
        {
@@ -1751,6 +1825,7 @@
     "type": "object",
     "required": [
      "week_start",
+     "version",
      "value",
      "status",
      "open_issue_id"
@@ -1865,6 +1940,7 @@
       "type": "string",
       "maxLength": 200,
       "minLength": 1,
+      "pattern": "^[^\\x00]*$",
       "title": "Title"
      },
      "priority": {
@@ -1893,6 +1969,11 @@
      "id": {
       "type": "string",
       "title": "Id"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version",
+      "description": "Send back as expected_version to change priority without overwriting someone else"
      },
      "team_id": {
       "type": "string",
@@ -1958,6 +2039,7 @@
     "type": "object",
     "required": [
      "id",
+     "version",
      "team_id",
      "title",
      "owner",
@@ -1984,6 +2066,19 @@
       ],
       "title": "Priority",
       "description": "1\u20135, or null to clear"
+     },
+     "expected_version": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "minimum": 0.0,
+        "description": "Lost-update protection: the version you saw (0 = no score yet). A mismatch returns 409 stale_write with the current value. Omit for last-save-wins."
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expected Version"
      }
     },
     "additionalProperties": false,
@@ -2021,8 +2116,7 @@
     "properties": {
      "user_id": {
       "type": "string",
-      "maxLength": 64,
-      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_-]{1,64}$",
       "title": "User Id"
      }
     },
@@ -2331,6 +2425,19 @@
        }
       ],
       "title": "Value"
+     },
+     "expected_version": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "minimum": 0.0,
+        "description": "Lost-update protection: the version you saw (0 = no score yet). A mismatch returns 409 stale_write with the current value. Omit for last-save-wins."
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expected Version"
      }
     },
     "additionalProperties": false,
@@ -2423,6 +2530,7 @@
       "type": "string",
       "maxLength": 2000,
       "minLength": 1,
+      "pattern": "^[^\\x00]*$",
       "title": "Note"
      }
     },
@@ -2567,12 +2675,12 @@
       "type": "string",
       "maxLength": 200,
       "minLength": 1,
+      "pattern": "^[^\\x00]*$",
       "title": "Title"
      },
      "owner_id": {
       "type": "string",
-      "maxLength": 64,
-      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_-]{1,64}$",
       "title": "Owner Id"
      }
     },

@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from ...db import models as m
@@ -13,7 +13,7 @@ from ...rules.weeks import last_closed_week, local_date
 from ..deps import (
     CurrentUser, assert_valid_owner, current_user, get_db, load_in_team, now, team_reader, team_writer,
 )
-from ..errors import conflict
+from ..errors import AppError, conflict
 from ..schemas import (
     CompletionOut, IdPath, IssueCreate, IssueOut, IssuePatch, IssueSource, PersonRef, SolveIn, TodoCreate, TodoList, TodoOut,
 )
@@ -34,7 +34,7 @@ def issues_out(db: Session, rows: list[m.Issue]) -> list[IssueOut]:
     measurables = {x.id: x.name for x in db.scalars(select(m.Measurable).where(m.Measurable.id.in_(src_ids)))} if src_ids else {}
     return [
         IssueOut(
-            id=r.id, team_id=r.team_id, title=r.title, owner=PersonRef(id=r.owner_id, name=names[r.owner_id]),
+            id=r.id, version=r.version, team_id=r.team_id, title=r.title, owner=PersonRef(id=r.owner_id, name=names[r.owner_id]),
             priority=r.priority, created_at=r.created_at, solved_at=r.solved_at, resolution_note=r.resolution_note,
             source=IssueSource(measurable_id=r.source_measurable_id, measurable_name=measurables[r.source_measurable_id],
                                week_start=r.source_week) if r.source_measurable_id else None,
@@ -135,9 +135,19 @@ def set_priority(issue_id: IdPath, body: IssuePatch, user: CurrentUser = Depends
     issue = load_in_team(db, m.Issue, issue_id, user, write=True, what="issue")
     if engine.happened(issue.solved_at, at):
         raise conflict("issue_solved", "a solved Issue can't be reprioritized")
-    issue.priority, issue.updated_at = body.priority, at
+    stmt = update(m.Issue).where(m.Issue.id == issue.id)
+    if body.expected_version is not None:  # lost-update protection: the database decides, atomically
+        stmt = stmt.where(m.Issue.version == body.expected_version)
+    changed = db.execute(stmt.values(priority=body.priority, version=m.Issue.version + 1, updated_at=at)
+                         .returning(m.Issue.id)).scalar()
+    if changed is None:
+        db.rollback()
+        current = db.get(m.Issue, issue.id, populate_existing=True)
+        raise AppError(409, "stale_write", "someone changed this Issue's priority after you loaded it",
+                       current={"priority": current.priority, "version": current.version})
     publish(db, issue.team_id, "issues")
     db.commit()
+    db.refresh(issue)
     return issues_out(db, [issue])[0]
 
 
@@ -148,6 +158,7 @@ def solve_issue(issue_id: IdPath, body: SolveIn, user: CurrentUser = Depends(cur
     if engine.happened(issue.solved_at, at):  # "as of now", like the Issues list
         raise conflict("issue_solved", "this Issue is already solved")
     issue.solved_at, issue.resolution_note, issue.updated_at = at, body.note, at
+    issue.version = m.Issue.version + 1  # a solve is a change too: stale priority edits must not slip in after it
     publish(db, issue.team_id, "issues")
     db.commit()
     return issues_out(db, [issue])[0]

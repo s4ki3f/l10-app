@@ -115,12 +115,14 @@ class Score(Base):
     __table_args__ = (
         PrimaryKeyConstraint("measurable_id", "week_start"),  # one score per cell; editing is an upsert
         CheckConstraint(_monday("week_start"), name="score_week_is_monday"),
+        CheckConstraint("version >= 1", name="scores_version_positive"),
     )
     measurable_id: Mapped[str] = mapped_column(ForeignKey("measurables.id", ondelete="CASCADE"))
     week_start: Mapped[date] = mapped_column(Date)
     value: Mapped[Decimal] = mapped_column(Numeric(14, 4))
     updated_at: Mapped[datetime | None] = mapped_column(Ts)
     updated_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))  # bumped by every write (lost-update check)
 
 
 class Rock(Base):
@@ -155,6 +157,7 @@ class Issue(Base):
                              name="issues_source_measurable_same_team_fkey"),
         UniqueConstraint("id", "team_id", name="uq_issues_id_team"),
         CheckConstraint("solved_at IS NULL OR solved_at >= created_at", name="issue_solved_after_created"),
+        CheckConstraint("version >= 1", name="issues_version_positive"),
         CheckConstraint("length(btrim(title)) > 0", name="issue_title_present"),
         CheckConstraint("priority IS NULL OR priority BETWEEN 1 AND 5", name="issue_priority_range"),
         CheckConstraint(
@@ -184,6 +187,7 @@ class Issue(Base):
     source_measurable_id: Mapped[str | None] = mapped_column(Id)
     source_week: Mapped[date | None] = mapped_column(Date)
     updated_at: Mapped[datetime | None] = mapped_column(Ts)  # last app write (null for untouched seed rows)
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))  # bumped by every write (lost-update check)
 
 
 class Todo(Base):

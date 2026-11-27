@@ -59,6 +59,7 @@ class IssueSource(BaseModel):
 
 class IssueOut(BaseModel):
     id: str
+    version: int = Field(description="Send back as expected_version to change priority without overwriting someone else")
     team_id: str
     title: str
     owner: PersonRef
@@ -177,6 +178,7 @@ class GoalOut(BaseModel):
 
 class CellOut(BaseModel):
     week_start: date
+    version: int = Field(description="0 when there's no score yet; send back as expected_version")
     value: float | None
     status: Literal["on_track", "off_track", "pending"]
     open_issue_id: str | None = Field(description="The unsolved Issue made from this cell, if any")
@@ -201,14 +203,21 @@ class ScorecardOut(BaseModel):
 Score = Annotated[Decimal, Field(max_digits=14, decimal_places=4, allow_inf_nan=False)]
 
 
+ExpectedVersion = Annotated[int, Field(ge=0, strict=True, description=(
+    "Lost-update protection: the version you saw (0 = no score yet). A mismatch returns 409 stale_write "
+    "with the current value. Omit for last-save-wins."))]
+
+
 class ScoreIn(Strict):
     value: Score
+    expected_version: ExpectedVersion | None = None
 
 
 # ---------- issues: changes ----------
 
 class IssuePatch(Strict):
     priority: Priority | None = Field(description="1–5, or null to clear")
+    expected_version: ExpectedVersion | None = None
 
 
 class SolveIn(Strict):

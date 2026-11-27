@@ -8,7 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Cell, ScorecardRow } from "@/lib/api/types";
+import { keys } from "@/lib/keys";
 import { call, useApiMutation, useScorecard } from "@/lib/queries";
+import { useQueryClient } from "@tanstack/react-query";
 import { formatDay } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
@@ -89,9 +91,22 @@ export function ScorecardSection({ teamId, canWrite, focusWeek }: { teamId: stri
 }
 
 function ScoreCell({ teamId, row, cell, canWrite, prominent }: { teamId: string; row: ScorecardRow; cell: Cell; canWrite: boolean; prominent: boolean }) {
+  const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
-  const save = useApiMutation(teamId, ["scorecard"], (v: string) => call.putScore(row.id, cell.week_start, v));
+  // The version the user SAW when they started editing. Live updates may refresh `cell` mid-edit; saving
+  // against the refreshed version would silently overwrite whoever changed it in the meantime.
+  const [seenVersion, setSeenVersion] = useState(0);
+  const save = useApiMutation(teamId, ["scorecard"], (v: string) => call.putScore(row.id, cell.week_start, v, seenVersion), {
+    // lost-update protection: say who got there first instead of silently overwriting them
+    quiet: (e) => {
+      if (e.code !== "stale_write") return false;
+      const who = (e.current?.updated_by as string | undefined) ?? "Someone";
+      toast.warning(`${who} changed this to ${e.current?.value ?? "empty"} a moment ago. Your ${draft.trim()} wasn't saved.`);
+      qc.invalidateQueries({ queryKey: keys.topic(teamId, "scorecard") });
+      return true;
+    },
+  });
   const makeIssue = useApiMutation(teamId, ["issues", "scorecard"], () => call.makeIssue(row.id, cell.week_start),
     { success: `“${row.name}, week of ${formatDay(cell.week_start)}” is on the Issues list` });
   const s = STATUS[cell.status];
@@ -123,7 +138,7 @@ function ScoreCell({ teamId, row, cell, canWrite, prominent }: { teamId: string;
         <TooltipTrigger asChild>
           <button type="button" disabled={!canWrite} aria-label={label}
                   className="w-full rounded text-center tabular-nums enabled:hover:underline disabled:cursor-default"
-                  onClick={() => { setDraft(cell.value === null ? "" : String(cell.value)); setEditing(true); }}>
+                  onClick={() => { setDraft(cell.value === null ? "" : String(cell.value)); setSeenVersion(cell.version); setEditing(true); }}>
             {cell.value ?? "—"} <span aria-hidden className="text-[10px]">{s.mark}</span>
           </button>
         </TooltipTrigger>

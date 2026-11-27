@@ -119,3 +119,32 @@ test("a change made while the browser is still connecting is not lost (listen, t
   await expect(follower.getByTestId("live-status")).toHaveAttribute("data-status", "live", { timeout: 6_000 });
   await expect(follower.getByText(title)).toBeVisible({ timeout: 2_000 }); // no other change will arrive to rescue it
 });
+
+test("bonus: a stale score edit is refused instead of overwriting someone else (two browsers)", async ({ browser }) => {
+  const second = await firefox.launch();
+  const casey = await signIn(browser, "u3"); // Chromium
+  const blake = await signIn(second, "u2"); // Firefox
+  try {
+    const cellButton = (p: Page) => p.getByRole("button", { name: /^Customer churn, week of Nov 2:/ });
+
+    // Casey starts editing what she sees (3, version 1)…
+    await cellButton(casey).click();
+    // …meanwhile Blake changes the same cell and saves.
+    await cellButton(blake).click();
+    await blake.keyboard.press("ControlOrMeta+a");
+    await blake.keyboard.type("2.5");
+    await blake.keyboard.press("Enter");
+    await expect(cellButton(blake)).toContainText("2.5");
+    // Casey's screen refreshes live under her open editor, but she saves what she typed against what she saw.
+    await casey.keyboard.press("ControlOrMeta+a");
+    await casey.keyboard.type("3.4");
+    await casey.keyboard.press("Enter");
+
+    await expect(casey.getByText("Blake Brooks changed this to 2.5 a moment ago. Your 3.4 wasn't saved.")).toBeVisible();
+    await expect(cellButton(casey)).toContainText("2.5"); // Blake's change survived
+    await expect(cellButton(blake)).toContainText("2.5");
+  } finally {
+    await blake.context().close();
+    await second.close();
+  }
+});

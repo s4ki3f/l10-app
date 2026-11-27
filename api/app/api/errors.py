@@ -14,8 +14,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
 class AppError(Exception):
-    def __init__(self, status: int, code: str, message: str):
-        self.status, self.code, self.message = status, code, message
+    def __init__(self, status: int, code: str, message: str, **extra):
+        self.status, self.code, self.message, self.extra = status, code, message, extra
 
 
 def not_found(what: str = "resource") -> AppError:
@@ -45,7 +45,7 @@ def _body(code: str, message: str, **extra) -> dict:
 def install(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _app_error(_: Request, exc: AppError):
-        return JSONResponse(_body(exc.code, exc.message), status_code=exc.status)
+        return JSONResponse(_body(exc.code, exc.message, **exc.extra), status_code=exc.status)
 
     @app.exception_handler(RequestValidationError)
     async def _validation(_: Request, exc: RequestValidationError):
