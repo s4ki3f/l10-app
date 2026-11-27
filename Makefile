@@ -24,6 +24,7 @@ e2e: e2e-setup   ## Playwright against the real stack, reset to the seed first; 
 	cd web && pnpm exec playwright test
 
 rules-report:    ## print the rules report for APP_NOW (default 2026-11-11T15:00:00Z) from a freshly seeded database
+	@docker compose build --quiet migrate seed api >/dev/null  # this checkout's code; stdout stays pure JSON
 	@docker compose up -d --wait db >/dev/null 2>&1
 	@docker compose run --rm --no-deps migrate >/dev/null
 	@docker compose run --rm --no-deps seed python -m app.db.seed --reset /seed/seed.json >/dev/null
