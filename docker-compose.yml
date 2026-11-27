@@ -20,8 +20,9 @@ services:
     build: ./api
     command: ["alembic", "upgrade", "head"]
     environment: &api-env
-      DATABASE_URL: postgresql+psycopg://l10:l10@db:5432/l10
+      DATABASE_URL: postgresql+psycopg://l10:l10@db:5432/l10  # the owner: migrations and seed --reset only
       APP_NOW: ${APP_NOW:-2026-11-11T15:00:00Z}
+      L10_APP_DB_PASSWORD: ${L10_APP_DB_PASSWORD:-l10_app}  # migration 0009 creates the API's role with it
     depends_on:
       db: {condition: service_healthy}
 
@@ -36,7 +37,10 @@ services:
   api:
     build: ./api
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-    environment: *api-env
+    environment:
+      <<: *api-env
+      # least privilege: no DELETE anywhere, history append-only, owns nothing (migration 0009)
+      DATABASE_URL: postgresql+psycopg://l10_app:${L10_APP_DB_PASSWORD:-l10_app}@db:5432/l10
     ports: ["8000:8000"]
     depends_on:
       seed: {condition: service_completed_successfully}
