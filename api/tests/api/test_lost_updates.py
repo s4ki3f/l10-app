@@ -117,3 +117,46 @@ def test_concurrent_saves_on_one_version_exactly_one_wins(real_db):
     assert sorted(out) == [200] + [409] * (len(users) - 1), out
     with real_db.connect() as conn:
         assert conn.execute(text("SELECT version FROM scores WHERE measurable_id='m2' AND week_start='2026-11-02'")).scalar() == 2
+
+
+# ---------- check-then-act races on Issues (third external review) ----------
+
+def _interleave(real_db, request, user="u2"):
+    """Run `request` while another transaction solves i3: the request reads first (sees it unsolved), its write
+    then waits on the row, and the solve commits in between. Returns the request's response."""
+    result = {}
+    with TestClient(app) as c:
+        c.post("/auth/login", json={"user_id": user})
+        with real_db.connect() as solver:
+            tx = solver.begin()
+            # solved at the app's "now" (the API runs on a frozen clock), not Postgres' wall clock
+            solver.execute(text("UPDATE issues SET solved_at = '2026-11-11T14:59:00Z', resolution_note = 'solved first', "
+                                "version = version + 1 WHERE id = 'i3'"))  # holds i3's row lock, not committed
+            t = threading.Thread(target=lambda: result.update(r=request(c)))
+            t.start()
+            t.join(0.6)  # the request has read i3 as unsolved and is now blocked on the row
+            tx.commit()
+        t.join(10)
+    return result["r"]
+
+
+@pytest.fixture
+def restore_i3(real_db):
+    yield real_db
+    with real_db.begin() as conn:
+        conn.execute(text("UPDATE issues SET solved_at = NULL, resolution_note = NULL, priority = 3, version = 1, "
+                          "updated_at = NULL WHERE id = 'i3'"))
+
+
+def test_priority_change_racing_a_solve_is_refused(restore_i3):
+    r = _interleave(restore_i3, lambda c: c.patch("/issues/i3", json={"priority": 5}))
+    assert (r.status_code, r.json()["error"]["code"]) == (409, "issue_solved")
+    with restore_i3.connect() as conn:
+        assert conn.execute(text("SELECT priority FROM issues WHERE id = 'i3'")).scalar() == 3
+
+
+def test_second_solve_racing_a_solve_is_refused(restore_i3):
+    r = _interleave(restore_i3, lambda c: c.post("/issues/i3/solve", json={"note": "solved second"}))
+    assert (r.status_code, r.json()["error"]["code"]) == (409, "issue_solved")
+    with restore_i3.connect() as conn:
+        assert conn.execute(text("SELECT resolution_note FROM issues WHERE id = 'i3'")).scalar() == "solved first"

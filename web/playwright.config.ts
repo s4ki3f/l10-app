@@ -18,5 +18,10 @@ export default defineConfig({
     screenshot: "only-on-failure",
     video: "retain-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 860 } } }],
+  // Both engines, in order, on the same database: proves cross-browser behaviour and that no test depends on
+  // what another left behind (a third-party review found one that did).
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 860 } } },
+    { name: "firefox", use: { ...devices["Desktop Firefox"], viewport: { width: 1280, height: 860 } } },
+  ],
 });

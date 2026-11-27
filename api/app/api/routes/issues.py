@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session
 
 from ...db import models as m
@@ -133,16 +133,18 @@ def list_todos(team: m.Team = Depends(team_reader), db: Session = Depends(get_db
 def set_priority(issue_id: IdPath, body: IssuePatch, user: CurrentUser = Depends(current_user),
                  db: Session = Depends(get_db), at: datetime = Depends(now)):
     issue = load_in_team(db, m.Issue, issue_id, user, write=True, what="issue")
-    if engine.happened(issue.solved_at, at):
-        raise conflict("issue_solved", "a solved Issue can't be reprioritized")
-    stmt = update(m.Issue).where(m.Issue.id == issue.id)
-    if body.expected_version is not None:  # lost-update protection: the database decides, atomically
+    # Check-and-write in ONE statement: "still unsolved as of now" (and, if given, "still the version you saw")
+    # are WHERE conditions, so a solve that commits between our read and our write can't be overwritten.
+    stmt = update(m.Issue).where(m.Issue.id == issue.id, _unsolved_as_of(at))
+    if body.expected_version is not None:
         stmt = stmt.where(m.Issue.version == body.expected_version)
     changed = db.execute(stmt.values(priority=body.priority, version=m.Issue.version + 1, updated_at=at)
                          .returning(m.Issue.id)).scalar()
     if changed is None:
         db.rollback()
         current = db.get(m.Issue, issue.id, populate_existing=True)
+        if engine.happened(current.solved_at, at):
+            raise conflict("issue_solved", "a solved Issue can't be reprioritized")
         raise AppError(409, "stale_write", "someone changed this Issue's priority after you loaded it",
                        current={"priority": current.priority, "version": current.version})
     publish(db, issue.team_id, "issues")
@@ -155,13 +157,22 @@ def set_priority(issue_id: IdPath, body: IssuePatch, user: CurrentUser = Depends
 def solve_issue(issue_id: IdPath, body: SolveIn, user: CurrentUser = Depends(current_user),
                 db: Session = Depends(get_db), at: datetime = Depends(now)):
     issue = load_in_team(db, m.Issue, issue_id, user, write=True, what="issue")
-    if engine.happened(issue.solved_at, at):  # "as of now", like the Issues list
+    # Same pattern: two people solving at once — the second can't overwrite the first one's note.
+    solved = db.execute(update(m.Issue).where(m.Issue.id == issue.id, _unsolved_as_of(at))
+                        .values(solved_at=at, resolution_note=body.note, updated_at=at, version=m.Issue.version + 1)
+                        .returning(m.Issue.id)).scalar()
+    if solved is None:
+        db.rollback()
         raise conflict("issue_solved", "this Issue is already solved")
-    issue.solved_at, issue.resolution_note, issue.updated_at = at, body.note, at
-    issue.version = m.Issue.version + 1  # a solve is a change too: stale priority edits must not slip in after it
     publish(db, issue.team_id, "issues")
     db.commit()
+    db.refresh(issue)
     return issues_out(db, [issue])[0]
+
+
+def _unsolved_as_of(at: datetime):
+    """Not solved by `at` (solved later than `at` counts as unsolved, matching the Issues list)."""
+    return or_(m.Issue.solved_at.is_(None), m.Issue.solved_at > at)
 
 
 # ---------- To-Dos: done / undo ----------

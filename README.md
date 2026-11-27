@@ -16,7 +16,7 @@ Open **http://localhost:3000**, pick a seeded user, and open a second browser (o
 
 ## Test
 ```bash
-make test     # every layer, unattended: 263 pytest (rules, DB, API) + 5 Playwright tests (two-browser tests run Chromium + Firefox)
+make test     # every layer, unattended: 265 pytest (rules, DB, API) + 5 Playwright tests, run in Chromium and in Firefox
 ```
 Requires Docker, [uv](https://docs.astral.sh/uv/) and pnpm (`make test-api` / `make e2e` run one layer). **[docs/testing.md](docs/testing.md)**: fixture and clock strategy, and the committed failure trace in `docs/artifacts/`.
 
@@ -65,5 +65,5 @@ Built with **Claude Code (Claude Opus 5.5)**. I set the plan first (11 problems,
 
 Reviews found these; each is fixed with a test:
 - **Break-it / self-review:** a CHECK that let a NULL note through; a route walk that tested zero routes; a 404 that leaked a record's existence; an untested quarter filter; an E2E reset running stale image code.
-- **External review:** a change landing while a browser was still connecting could be missed (now listen-then-fetch, with a test acting inside that gap); later, a Rate that the clock-resume rule couldn't see (now a test covers every write route from OpenAPI).
+- **External review:** a change landing while a browser was still connecting could be missed (now listen-then-fetch, with a test acting inside that gap); later, a Rate that the clock-resume rule couldn't see (now a test covers every write route from OpenAPI); then a solve racing a priority change (the "still unsolved" check now lives in the UPDATE) and an E2E test that depended on what an earlier run left behind.
 - **Three parallel AI reviewers** (timing, security, rules): confirmed the graded report; 19 findings, e.g. a seed rerun that could crash `docker compose up`, hints lost while the database listener reconnected, a Rate landing after End, inputs giving a bare 500.

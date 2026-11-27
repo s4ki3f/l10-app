@@ -126,23 +126,30 @@ test("bonus: a stale score edit is refused instead of overwriting someone else (
   const blake = await signIn(second, "u2"); // Firefox
   try {
     const cellButton = (p: Page) => p.getByRole("button", { name: /^Customer churn, week of Nov 2:/ });
+    // Values unique to this run: never the seed's 3, never what an earlier run (or another browser project) left.
+    const shown = (await cellButton(casey).getAttribute("aria-label"))!.match(/: ([\d.]+) —/)?.[1];
+    let mine = (1 + (Date.now() % 800) / 100).toFixed(2);
+    if (mine === shown) mine = (Number(mine) + 0.01).toFixed(2);
+    const blakes = mine;
+    const caseys = (Number(blakes) + 0.37).toFixed(2);
 
-    // Casey starts editing what she sees (3, version 1)…
+    // Casey starts editing what she sees…
     await cellButton(casey).click();
     // …meanwhile Blake changes the same cell and saves.
     await cellButton(blake).click();
     await blake.keyboard.press("ControlOrMeta+a");
-    await blake.keyboard.type("2.5");
+    await blake.keyboard.type(blakes);
     await blake.keyboard.press("Enter");
-    await expect(cellButton(blake)).toContainText("2.5");
+    await expect(cellButton(blake)).toContainText(String(Number(blakes)));
     // Casey's screen refreshes live under her open editor, but she saves what she typed against what she saw.
     await casey.keyboard.press("ControlOrMeta+a");
-    await casey.keyboard.type("3.4");
+    await casey.keyboard.type(caseys);
     await casey.keyboard.press("Enter");
 
-    await expect(casey.getByText("Blake Brooks changed this to 2.5 a moment ago. Your 3.4 wasn't saved.")).toBeVisible();
-    await expect(cellButton(casey)).toContainText("2.5"); // Blake's change survived
-    await expect(cellButton(blake)).toContainText("2.5");
+    const b = String(Number(blakes));
+    await expect(casey.getByText(`Blake Brooks changed this to ${b} a moment ago. Your ${caseys} wasn't saved.`)).toBeVisible();
+    await expect(cellButton(casey)).toContainText(b); // Blake's change survived
+    await expect(cellButton(blake)).toContainText(b);
   } finally {
     await blake.context().close();
     await second.close();
