@@ -46,6 +46,12 @@ def todo_source(todo: m.Todo) -> Source:
                   text("solved_at IS NULL AND source_todo_id IS NOT NULL"))
 
 
+def lock(db: Session, model, *where):
+    """SELECT … FOR UPDATE, refreshing the identity map: the eligibility check that follows reads committed state,
+    and a competing write (marking a To-Do done, editing a score) waits until we commit, or we wait for it."""
+    return db.scalars(select(model).where(*where).with_for_update().execution_options(populate_existing=True)).first()
+
+
 def open_issue(db: Session, src: Source, at: datetime) -> m.Issue | None:
     """The source's unsolved Issue as of `at` (the same rule as the Issues list and the rules report)."""
     return db.scalars(select(m.Issue).where(src.matches(), m.open_as_of(at)).order_by(m.Issue.created_at)).first()

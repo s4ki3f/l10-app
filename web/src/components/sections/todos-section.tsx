@@ -51,9 +51,12 @@ function TodoRow({ teamId, todo, canWrite }: { teamId: string; todo: Todo; canWr
   const raise = useApiMutation(teamId, ["issues", "todos"], () => call.issueFromTodo(todo.id),
     { success: `“Overdue To-Do: ${todo.title}” is on the Issues list` });
   const isDone = !!todo.done_at;
+  // The label wraps ONLY the checkbox and its text. Anything else clickable lives outside it: a click that
+  // lands on a disabled button inside a label falls through to the label and toggles the checkbox.
   return (
-    <label className={cn("flex items-start gap-3 rounded-md px-2 py-1.5 hover:bg-muted/50", isDone && "text-muted-foreground")}
-           data-testid={`todo-${todo.id}`}>
+    <div className={cn("flex items-start gap-3 rounded-md px-2 py-1.5 hover:bg-muted/50", isDone && "text-muted-foreground")}
+         data-testid={`todo-${todo.id}`}>
+     <label className="flex min-w-0 flex-1 items-start gap-3">
       <input type="checkbox" className="mt-1 size-4 accent-primary" checked={isDone} disabled={!canWrite || toggle.isPending}
              onChange={(e) => toggle.mutate(e.target.checked)} aria-label={`${isDone ? "Undo" : "Mark done"}: ${todo.title}`} />
       <span className="min-w-0 flex-1">
@@ -64,13 +67,14 @@ function TodoRow({ teamId, todo, canWrite }: { teamId: string; todo: Todo; canWr
           {todo.source_issue && <> · from Issue “{todo.source_issue.title}”</>}
         </span>
       </span>
+     </label>
       {todo.overdue && <Badge variant="destructive">Overdue</Badge>}
       {todo.overdue && (todo.open_issue_id ? <Badge variant="outline">Issue</Badge> : canWrite && (
         <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-destructive" data-testid={`issue-from-${todo.id}`}
-                onClick={(e) => { e.preventDefault(); raise.mutate(undefined); }} disabled={raise.isPending}>
+                onClick={() => { if (!raise.isPending) raise.mutate(undefined); }} disabled={raise.isPending}>
           Make it an Issue
         </Button>
       ))}
-    </label>
+    </div>
   );
 }

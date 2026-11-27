@@ -143,3 +143,51 @@ def test_concurrent_clicks_make_one_issue(real_db, url):
     [t.start() for t in ts]
     [t.join(30) for t in ts]
     assert sorted(s for s, _ in out) == [200] * (len(users) - 1) + [201] and len({i for _, i in out}) == 1, out
+
+
+# ---------- eligibility can't go stale between the check and the insert (B2 review) ----------
+
+def _race(real_db, competing_sql, request):
+    from tests.conftest import wait_until_blocked_by
+
+    result = {}
+    with TestClient(app) as c:
+        c.post("/auth/login", json={"user_id": "u3"})
+        with real_db.connect() as other:
+            tx = other.begin()
+            pid = other.execute(text("SELECT pg_backend_pid()")).scalar()
+            other.execute(text(competing_sql))  # holds the row, not committed
+            t = threading.Thread(target=lambda: result.update(r=request(c)))
+            t.start()
+            wait_until_blocked_by(real_db, pid)  # the request is queued behind the competing change
+            tx.commit()
+        t.join(10)
+    return result["r"]
+
+
+def test_todo_marked_done_meanwhile_is_not_made_an_overdue_issue(real_db):
+    try:
+        r = _race(real_db, "UPDATE todos SET done_at = '2026-11-11T14:59:00Z' WHERE id = 't31'",
+                  lambda c: c.post("/todos/t31/issue"))
+        assert (r.status_code, r.json()["error"]["code"]) == (409, "not_overdue")
+    finally:
+        with real_db.begin() as conn:
+            conn.execute(text("UPDATE todos SET done_at = NULL WHERE id = 't31'"))
+
+
+def test_score_fixed_meanwhile_is_not_made_an_issue(real_db):
+    try:
+        r = _race(real_db, "UPDATE scores SET value = 11 WHERE measurable_id = 'm1' AND week_start = '2026-10-26'",
+                  lambda c: c.post("/measurables/m1/weeks/2026-10-26/issue"))
+        assert (r.status_code, r.json()["error"]["code"]) == (409, "not_off_track")
+    finally:
+        with real_db.begin() as conn:
+            conn.execute(text("UPDATE scores SET value = 9 WHERE measurable_id = 'm1' AND week_start = '2026-10-26'"))
+
+
+def test_a_rock_from_another_quarter_is_409(as_user):
+    from datetime import timedelta
+
+    app.state.clock = FrozenClock(NOW + timedelta(days=60))  # 2027-Q1: the Rocks list is empty, so is this
+    r = as_user("u3").post("/rocks/r4/issue")
+    assert (r.status_code, r.json()["error"]["code"]) == (409, "not_current_quarter")

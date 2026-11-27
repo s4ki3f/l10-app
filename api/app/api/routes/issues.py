@@ -14,7 +14,7 @@ from ..deps import (
     CurrentUser, assert_valid_owner, current_user, get_db, load_in_team, now, team_reader, team_writer,
 )
 from ..errors import AppError, conflict
-from ..raise_issue import raise_or_return, todo_source
+from ..raise_issue import lock, raise_or_return, todo_source
 from ..schemas import (
     CompletionOut, IdPath, IssueCreate, ItemRef, IssueOut, IssuePatch, IssueSource, PersonRef, SolveIn, TodoCreate, TodoList, TodoOut,
 )
@@ -188,7 +188,8 @@ def _unsolved_as_of(at: datetime):
 # ---------- To-Dos: done / undo ----------
 
 def _set_done(db: Session, todo_id: str, user: CurrentUser, at: datetime, done: bool) -> TodoOut:
-    todo = load_in_team(db, m.Todo, todo_id, user, write=True, what="to-do")
+    load_in_team(db, m.Todo, todo_id, user, write=True, what="to-do")
+    todo = lock(db, m.Todo, m.Todo.id == todo_id)  # serialises with Make it an Issue on this To-Do
     todo.done_at, todo.updated_at = (at if done else None), at
     publish(db, todo.team_id, "todos")
     db.commit()
@@ -213,7 +214,8 @@ def undo_done(todo_id: IdPath, user: CurrentUser = Depends(current_user), db: Se
                         409: {"description": "The To-Do is not overdue"}})
 def issue_from_todo(response: Response, todo_id: IdPath, user: CurrentUser = Depends(current_user),
                     db: Session = Depends(get_db), at: datetime = Depends(now)):
-    todo = load_in_team(db, m.Todo, todo_id, user, write=True, what="to-do")
+    load_in_team(db, m.Todo, todo_id, user, write=True, what="to-do")
+    todo = lock(db, m.Todo, m.Todo.id == todo_id)  # a concurrent "mark done" can't slip between check and insert
 
     def overdue() -> None:
         if todo.created_at > at or not engine.is_overdue(todo_of(todo), at):

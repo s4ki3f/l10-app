@@ -1,4 +1,4 @@
-"""Schema lint: every foreign key either has an index starting with its columns, or is listed here on purpose.
+"""Schema lint: every foreign key either has a full (non-partial) index starting with its columns, or is listed here on purpose.
 
 Postgres doesn't index foreign keys by itself. The ones the app reads through are indexed (migration 0006);
 these are only touched when deleting the referenced row (a user, company or Issue), which the app never does.
@@ -18,7 +18,7 @@ SELECT c.conrelid::regclass || '(' || string_agg(a.attname, ',' ORDER BY k.n) ||
 FROM pg_constraint c CROSS JOIN LATERAL unnest(c.conkey) WITH ORDINALITY k(attnum, n)
 JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
 WHERE c.contype = 'f' AND NOT EXISTS (
-  SELECT 1 FROM pg_index i WHERE i.indrelid = c.conrelid
+  SELECT 1 FROM pg_index i WHERE i.indrelid = c.conrelid AND i.indpred IS NULL  -- a partial index can't serve every lookup
     AND (i.indkey::int2[])[0:array_length(c.conkey, 1) - 1] = c.conkey)
 GROUP BY c.conrelid, c.conname
 """)

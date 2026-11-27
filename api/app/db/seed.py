@@ -16,7 +16,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
-from sqlalchemy import Connection, delete, tuple_
+from sqlalchemy import Connection, delete, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 
 from ..rules.weeks import parse_utc
@@ -121,6 +121,9 @@ def reset_to_seed(conn: Connection, seed: dict) -> None:
     conn.execute(delete(Meeting).where(Meeting.id.not_in(ids("meetings"))))  # attendees/ratings cascade
     conn.execute(delete(MeetingRating))  # seeded ratings are re-inserted below; this drops ratings added later
     conn.execute(delete(MeetingAttendee).where(MeetingAttendee.meeting_id.in_(ids("meetings"))))
+    # Issues and To-Dos point at each other (a To-Do from an Issue, an Issue from a To-Do): cut the
+    # Issue→To-Do links to app To-Dos first, then delete To-Dos, then Issues.
+    conn.execute(update(Issue).where(Issue.source_todo_id.not_in(ids("todos"))).values(source_todo_id=None))
     conn.execute(delete(Todo).where(Todo.id.not_in(ids("todos"))))
     conn.execute(delete(Issue).where(Issue.id.not_in(ids("issues"))))
     seeded_cells = [(s["measurable_id"], date.fromisoformat(s["week_start"])) for s in seed["scores"]]

@@ -51,6 +51,8 @@ def issue_from_rock(response: Response, rock_id: IdPath, user: CurrentUser = Dep
     rock = load_in_team(db, m.Rock, rock_id, user, write=True, what="rock")
 
     def off_track() -> None:
+        if rock.quarter != quarter_of(local_date(at)):  # same scope as the Rocks list: this quarter only
+            raise conflict("not_current_quarter", "only this quarter's Rocks can be made an Issue")
         milestones = [milestone_of(x) for x in db.scalars(select(m.Milestone).where(m.Milestone.rock_id == rock.id))]
         if engine.rock_status(rock_of(rock), milestones, at) != "off_track":
             raise conflict("not_off_track", "only an off-track Rock can be made an Issue")

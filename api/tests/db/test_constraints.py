@@ -181,3 +181,15 @@ def test_clock_resumes_after_the_last_app_write(db):
     assert last_app_write(S(bind=db)) is None  # fresh seed: the app starts exactly at APP_NOW
     db.execute(text("UPDATE issues SET priority = 4, updated_at = '2026-11-11T15:40:00Z' WHERE id = 'i3'"))
     assert last_app_write(S(bind=db)).isoformat() == "2026-11-11T15:40:00+00:00"
+
+
+def test_reset_survives_an_issue_made_from_an_app_todo(db):
+    """Issues and To-Dos point at each other now (To-Do from an Issue, Issue from a To-Do): reset must untangle it."""
+    db.execute(text("INSERT INTO issues (id, team_id, title, owner_id, created_at) VALUES ('i_a','team_lead','A','u2','2026-11-01T15:00:00Z')"))
+    db.execute(text("INSERT INTO todos (id, team_id, title, owner_id, due_date, created_at, source_issue_id) "
+                    "VALUES ('t_t','team_lead','T','u2','2026-11-05','2026-11-01T15:00:00Z','i_a')"))
+    db.execute(text("INSERT INTO issues (id, team_id, title, owner_id, created_at, source_todo_id) "
+                    "VALUES ('i_b','team_lead','Overdue To-Do: T','u2','2026-11-10T15:00:00Z','t_t')"))
+    reset_to_seed(db, SEED)
+    assert db.execute(text("SELECT count(*) FROM issues WHERE id IN ('i_a','i_b')")).scalar() == 0
+    assert db.execute(text("SELECT count(*) FROM todos WHERE id = 't_t'")).scalar() == 0

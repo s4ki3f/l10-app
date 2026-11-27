@@ -1,4 +1,4 @@
-import { expect, firefox, test, type Browser, type Page } from "@playwright/test";
+import { expect, firefox, request, test, type Browser, type Page } from "@playwright/test";
 
 /**
  * Brief minimum: one Playwright test with two browsers — the facilitator advances the agenda and the
@@ -156,26 +156,74 @@ test("bonus: a stale score edit is refused instead of overwriting someone else (
   }
 });
 
-test("bonus: an off-track Rock and an overdue To-Do become Issues; another browser sees them live", async ({ browser }) => {
+/** Self-contained bonus tests: solve any open Issue on the item first, so the button must be there this run. */
+async function freshItems(base: string, items: { rocks?: string[]; todos?: string[] }) {
+  const api = await request.newContext({ baseURL: base });
+  await api.post("/api/auth/login", { data: { user_id: "u3" } });
+  const rocks = await (await api.get("/api/teams/team_lead/rocks")).json();
+  const todos = (await (await api.get("/api/teams/team_lead/todos")).json()).items;
+  const open = [
+    ...rocks.filter((r: { id: string }) => items.rocks?.includes(r.id)),
+    ...todos.filter((t: { id: string }) => items.todos?.includes(t.id)),
+  ].map((x: { open_issue_id: string | null }) => x.open_issue_id).filter(Boolean);
+  for (const id of open) await api.post(`/api/issues/${id}/solve`, { data: { note: "cleared by the E2E test" } });
+  await api.dispose();
+}
+
+test("bonus: an off-track Rock and an overdue To-Do become Issues; another browser sees them live", async ({ browser, baseURL }) => {
+  await freshItems(baseURL!, { rocks: ["r2"], todos: ["t31"] });
   const second = await firefox.launch();
   const casey = await signIn(browser, "u3");
   const blake = await signIn(second, "u2");
   try {
-    // Make each an Issue unless an earlier run already did (the suite runs in two engines without a reset).
-    for (const id of ["r2", "t31"]) {
-      const button = casey.getByTestId(`issue-from-${id}`);
-      if (await button.isVisible()) await button.click();
-    }
-    for (const page of [casey, blake]) {
-      await expect(page.getByTestId("issues-open")).toContainText("Rock off track: Hire VP of Sales", { timeout: FOLLOW_MS });
-      await expect(page.getByTestId("issues-open")).toContainText("Overdue To-Do: Send portal beta invites", { timeout: FOLLOW_MS });
-      await expect(page.getByTestId("rock-r2")).toContainText("Issue");
-      await expect(page.getByTestId("issue-from-r2")).toHaveCount(0); // no second Issue for the same Rock
-    }
+    // Blake is live and sees the buttons BEFORE anything happens, so what follows is a live update, not a load.
+    await expect(blake.getByTestId("live-status")).toHaveAttribute("data-status", "live");
+    await expect(blake.getByTestId("issue-from-r2")).toBeVisible();
+    await expect(blake.getByTestId("issue-from-t31")).toBeVisible();
+
+    await casey.getByTestId("issue-from-r2").click();
+    await casey.getByTestId("issue-from-t31").click();
+    // The clicks did only that: the Rock didn't expand, the To-Do wasn't ticked.
+    await expect(casey.getByTestId("rock-r2")).toHaveAttribute("data-state", "closed");
+    await expect(casey.getByTestId("todo-t31").locator('input[type="checkbox"]')).not.toBeChecked();
+
+    // Blake, without reloading: badges replace the buttons, and the Issues name their sources.
+    await expect(blake.getByTestId("issue-from-r2")).toHaveCount(0, { timeout: FOLLOW_MS });
+    await expect(blake.getByTestId("issue-from-t31")).toHaveCount(0, { timeout: FOLLOW_MS });
+    await expect(blake.getByTestId("rock-r2")).toContainText("Issue");
+    await expect(blake.getByTestId("issues-open")).toContainText("from Rock Hire VP of Sales");
+    await expect(blake.getByTestId("issues-open")).toContainText("from overdue To-Do Send portal beta invites");
+
+    // An Observer sees overdue / off-track items but never the button.
     const observer = await signIn(browser, "u5");
-    await expect(observer.getByText("Make it an Issue")).toHaveCount(0);
+    await expect(observer.getByTestId("todo-t12")).toContainText("Overdue");
+    await expect(observer.getByTestId("rock-r4")).toContainText("Off track");
+    await expect(observer.getByTestId("issue-from-t12")).toHaveCount(0);
+    await expect(observer.getByTestId("issue-from-r4")).toHaveCount(0);
   } finally {
     await blake.context().close();
     await second.close();
   }
+});
+
+test("bonus: a double-click on Make it an Issue never ticks the To-Do (even with network latency)", async ({ browser, baseURL }) => {
+  await freshItems(baseURL!, { todos: ["t12"] });
+  const page = await signIn(browser, "u3");
+  await page.route("**/api/todos/*/issue", async (r) => { await new Promise((s) => setTimeout(s, 800)); await r.continue(); });
+  const button = page.getByTestId("issue-from-t12");
+  await expect(button).toBeVisible();
+  const box = (await button.boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(120); // a human double-click: the second lands while the request is in flight
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  // Judge by the server, not the screen: wait until the Issue exists, let any in-flight toggle land, then
+  // the To-Do must still be not done. (A text match on "Issue" would match the button's own label.)
+  const api = await request.newContext({ baseURL: baseURL! });
+  await api.post("/api/auth/login", { data: { user_id: "u3" } });
+  const t12 = async () => (await (await api.get("/api/teams/team_lead/todos")).json()).items.find((t: { id: string }) => t.id === "t12");
+  await expect.poll(async () => (await t12()).open_issue_id, { timeout: 5_000 }).not.toBeNull();
+  await page.waitForTimeout(1_500);
+  expect((await t12()).done_at).toBeNull();
+  await expect(page.getByTestId("todo-t12").locator('input[type="checkbox"]')).not.toBeChecked();
+  await api.dispose();
 });

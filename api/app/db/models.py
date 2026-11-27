@@ -178,7 +178,7 @@ class Issue(Base):
             "uq_issue_open_per_source_cell", "source_measurable_id", "source_week",
             unique=True, postgresql_where=text("solved_at IS NULL AND source_measurable_id IS NOT NULL"),
         ),
-        Index("ix_issue_team_open", "team_id", postgresql_where=text("solved_at IS NULL")),
+        Index("ix_issues_team", "team_id"),
         Index("ix_issues_source_measurable", "source_measurable_id", "team_id"),
         ForeignKeyConstraint(["source_rock_id", "team_id"], ["rocks.id", "rocks.team_id"],
                              name="issues_source_rock_same_team_fkey"),
@@ -191,6 +191,8 @@ class Issue(Base):
               postgresql_where=text("solved_at IS NULL AND source_rock_id IS NOT NULL")),
         Index("uq_issue_open_per_source_todo", "source_todo_id", "team_id", unique=True,
               postgresql_where=text("solved_at IS NULL AND source_todo_id IS NOT NULL")),
+        Index("ix_issues_source_rock", "source_rock_id", "team_id"),
+        Index("ix_issues_source_todo", "source_todo_id", "team_id"),
     )
     id: Mapped[str] = mapped_column(Id, primary_key=True, default=lambda: new_id("i"))
     team_id: Mapped[str] = mapped_column(ForeignKey("teams.id"))
@@ -237,6 +239,7 @@ class Meeting(Base):
         CheckConstraint("ended_at IS NULL OR ended_at >= started_at", name="meeting_ends_after_start"),
         # One active meeting per team; two simultaneous Starts → one wins, the other joins it.
         Index("uq_meeting_active_per_team", "team_id", unique=True, postgresql_where=text("ended_at IS NULL")),
+        Index("ix_meetings_team", "team_id", "started_at"),
     )
     id: Mapped[str] = mapped_column(Id, primary_key=True, default=lambda: new_id("mt"))
     team_id: Mapped[str] = mapped_column(ForeignKey("teams.id"))

@@ -18,7 +18,7 @@ from ...rules import engine
 from ...rules.weeks import last_closed_week, scorecard_weeks, week_of
 from ..deps import CurrentUser, current_user, get_db, load_in_team, now, team_reader
 from ..errors import AppError, conflict, invalid
-from ..raise_issue import cell_source, open_issue, raise_or_return
+from ..raise_issue import cell_source, lock, open_issue, raise_or_return
 from .issues import issues_out
 from ..schemas import CellOut, GoalOut, IdPath, IssueOut, PersonRef, ScoreIn, ScorecardOut, ScorecardRow
 
@@ -70,6 +70,8 @@ def make_it_an_issue(
 ):
     measurable = load_in_team(db, m.Measurable, measurable_id, user, write=True, what="measurable")
     week = cell_week(week, at)
+    # lock the score (if any) so a concurrent edit can't make the cell on track between check and insert
+    lock(db, m.Score, m.Score.measurable_id == measurable.id, m.Score.week_start == week)
 
     def off_track() -> None:
         if cell_status(db, measurable, week, at) != "off_track":

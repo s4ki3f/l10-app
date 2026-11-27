@@ -30,7 +30,9 @@ export function RocksSection({ teamId, canWrite }: { teamId: string; canWrite: b
         {q.data?.length === 0 && <p className="text-sm text-muted-foreground">No Rocks this quarter.</p>}
         {q.data?.map((r) => (
           <Collapsible key={r.id} className="rounded-lg border" data-testid={`rock-${r.id}`}>
-            <CollapsibleTrigger className="flex w-full flex-wrap items-center gap-3 p-3 text-left">
+           {/* The trigger covers the summary only; "Make it an Issue" is a sibling button, never nested in it. */}
+           <div className="flex items-center gap-2 pr-3">
+            <CollapsibleTrigger className="flex min-w-0 flex-1 flex-wrap items-center gap-3 p-3 text-left">
               <div className="min-w-0 flex-1">
                 <div className="font-medium">{r.title}</div>
                 <div className="text-xs text-muted-foreground">{r.owner.name} · {r.milestones.length} Milestones</div>
@@ -40,8 +42,9 @@ export function RocksSection({ teamId, canWrite }: { teamId: string; canWrite: b
                 <span className="w-9 text-right text-xs tabular-nums">{r.progress_percent}%</span>
               </div>
               <Badge variant="outline" className={STATUS[r.status].cls}>{STATUS[r.status].label}</Badge>
-              {r.status === "off_track" && <RockIssue teamId={teamId} rock={r} canWrite={canWrite} />}
             </CollapsibleTrigger>
+            {r.status === "off_track" && <RockIssue teamId={teamId} rock={r} canWrite={canWrite} />}
+           </div>
             <CollapsibleContent>
               <ul className="border-t px-3 py-2 text-sm">
                 {r.milestones.length === 0 && <li className="text-muted-foreground">No Milestones.</li>}
@@ -69,12 +72,9 @@ function RockIssue({ teamId, rock, canWrite }: { teamId: string; rock: Rock; can
   if (rock.open_issue_id) return <Badge variant="outline">Issue</Badge>;
   if (!canWrite) return null;
   return (
-    <Button asChild size="sm" variant="ghost" className="h-6 px-2 text-xs text-destructive">
-      <span role="button" tabIndex={0} data-testid={`issue-from-${rock.id}`}
-            onClick={(e) => { e.stopPropagation(); raise.mutate(undefined); }}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); raise.mutate(undefined); } }}>
-        Make it an Issue
-      </span>
+    <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-destructive" data-testid={`issue-from-${rock.id}`}
+            disabled={raise.isPending} onClick={() => { if (!raise.isPending) raise.mutate(undefined); }}>
+      Make it an Issue
     </Button>
   );
 }
