@@ -16,7 +16,7 @@ test-api:        ## rules, DB constraint and API tests against a rebuilt l10_tes
 	cd api && uv sync --frozen -q && uv run pytest -q
 
 e2e-setup:
-	cd web && pnpm install --frozen-lockfile && pnpm exec playwright install chromium
+	cd web && pnpm install --frozen-lockfile && pnpm exec playwright install chromium firefox
 
 e2e: e2e-setup   ## Playwright against the real stack, reset to the seed first; failures keep a trace in web/test-results
 	docker compose up --build -d --wait api web

@@ -16,7 +16,7 @@ Open **http://localhost:3000**, pick a seeded user and open a second browser (or
 
 ## Test
 ```bash
-make test     # every layer, unattended: 212 pytest (rules, DB, API) + 4 Playwright two-browser tests
+make test     # every layer, unattended: 212 pytest (rules, DB, API) + 4 Playwright tests (the meeting test runs Chromium + Firefox)
 ```
 Requires Docker, [uv](https://docs.astral.sh/uv/) and pnpm. `make test-api` runs only pytest and `make e2e` only Playwright. **[docs/testing.md](docs/testing.md)** covers the fixture and clock strategy and the committed failure trace (`docs/artifacts/`).
 

@@ -7,7 +7,7 @@ One command, unattended: **`make test`** (needs Docker, `uv`, `pnpm`). It runs e
 | Rule tests | `api/tests/rules` | every rule in 2.6 with its boundary cases, one named test per seed trap; the full rules report == a hand-worked answer key; also at a summer date and "as of" Nov 1 | 47 |
 | DB tests | `api/tests/db` | Postgres itself rejects invalid rows (ranges, Monday weeks, solved ⇔ note, one open Issue per cell, one live meeting per team, owners are real users, only attendees rate); seed and reset are idempotent | 22 |
 | API tests | `api/tests/api` | 401 / 404 (other team) / 403 (observer write) on every team-scoped route, walked from OpenAPI; concurrent Make it an Issue → one Issue; concurrent Starts → one meeting; meeting rules and timer; a live uvicorn SSE test (change reaches another user's stream < 1 s, other teams never hear it); owners (any Admin, or a Team Member of the team); Team page values vs the answer key; `hello` waits for LISTEN | 143 |
-| End-to-end | `web/e2e` | two browsers: the facilitator advances Scorecard → IDS → Conclude and the follower follows within 2 s, both rate, end → follower sees the summary; refresh mid-meeting recovers section + timer; observer is read-only; a change committed while a browser is still connecting still reaches it | 4 |
+| End-to-end | `web/e2e` | two real browsers (facilitator in Chromium, follower in a separately launched Firefox): the facilitator advances Scorecard → IDS → Conclude and the follower follows within 2 s, both rate, end → follower sees the summary; refresh mid-meeting recovers section + timer; observer is read-only; a change committed while a browser is still connecting still reaches it | 4 |
 
 ## Fixture strategy
 
@@ -37,4 +37,4 @@ The method has a blind spot: it removes safeguards that exist, so it can't revea
 E2E_BREAK_SSE=1 pnpm --dir web exec playwright test -g "second browser follows"
 ```
 
-The facilitator moves to IDS; the follower stays on Scorecard with the indicator showing "Reconnecting…", and the test fails with `Expected "ids", Received "scorecard"` after 2 s. Open it with `pnpm --dir web exec playwright show-trace ../docs/artifacts/e2e-failure-sse-blocked.trace.zip` (or drop it on trace.playwright.dev). Screenshots of both browsers at the moment of failure are next to it.
+The facilitator (Chromium) moves to IDS; the follower (Firefox) stays on Scorecard with the indicator showing "Reconnecting…", and the test fails with `Expected "ids", Received "scorecard"` after 2 s. The trace covers both browsers. Open it with `pnpm --dir web exec playwright show-trace ../docs/artifacts/e2e-failure-sse-blocked.trace.zip` (or drop it on trace.playwright.dev). Screenshots of both browsers at the moment of failure are next to it.
