@@ -141,9 +141,14 @@ def test_reset_restores_exactly_the_seed(db):
     db.execute(text("UPDATE issues SET solved_at = now(), resolution_note = 'n' WHERE id = 'i1'"))
     db.execute(text("INSERT INTO meetings (id, team_id, facilitator_id, started_at, section_started_at) VALUES ('mt_new','team_lead','u2',now(),now())"))
     db.execute(text("INSERT INTO meeting_attendees (meeting_id, user_id) VALUES ('mt_new','u2'), ('mt1','u6')"))
+    db.execute(text("UPDATE issues SET priority = 1, version = version + 3 WHERE id = 'i3'"))
+    db.execute(text("UPDATE scores SET value = 2.5, version = version + 2 WHERE measurable_id = 'm2' AND week_start = '2026-11-02'"))
     reset_to_seed(db, SEED)
     assert snapshot() == before
     assert db.execute(text("SELECT solved_at FROM issues WHERE id = 'i1'")).scalar() is None
+    # exactly the seed: versions too, so a client loading the fresh seed sees version 1 everywhere
+    assert db.execute(text("SELECT max(version) FROM issues")).scalar() == 1
+    assert db.execute(text("SELECT max(version) FROM scores")).scalar() == 1
 
 
 def test_seed_rerun_survives_a_reraised_seed_issue(db):

@@ -44,9 +44,9 @@ def _n(value):
 # On a plain rerun, an Issue's solved state belongs to the app: reopening a seeded Issue the team has since
 # solved could collide with a newer open Issue on the same cell (one unsolved Issue per cell). --reset restores it.
 KEEP_ON_RERUN = {
-    Issue: {"solved_at", "resolution_note", "updated_at"},
+    Issue: {"solved_at", "resolution_note", "updated_at", "version"},
     Todo: {"updated_at"},
-    Score: {"updated_at", "updated_by"},
+    Score: {"updated_at", "updated_by", "version"},
     MeetingRating: {"updated_at"},
 }
 
@@ -74,7 +74,8 @@ def rows_from_seed(seed: dict) -> list[tuple[type, list[dict]]]:
         (Measurable, [
             {**{k: m[k] for k in ("id", "team_id", "name", "owner_id", "unit")}, **goal(m["goal"])} for m in seed["measurables"]
         ]),
-        (Score, [{"measurable_id": s["measurable_id"], "week_start": _d(s["week_start"]), "value": _n(s["value"]), "updated_at": None, "updated_by": None} for s in seed["scores"]]),
+        (Score, [{"measurable_id": s["measurable_id"], "week_start": _d(s["week_start"]), "value": _n(s["value"]), "updated_at": None, "updated_by": None,
+                  "version": 1} for s in seed["scores"]]),
         (Rock, [{k: r[k] for k in ("id", "team_id", "title", "owner_id", "quarter", "status")} for r in seed["rocks"]]),
         (Milestone, [{**{k: m[k] for k in ("id", "rock_id", "title", "done")}, "due_date": _d(m["due_date"])} for m in seed["milestones"]]),
         (Issue, [
@@ -82,7 +83,7 @@ def rows_from_seed(seed: dict) -> list[tuple[type, list[dict]]]:
                 **{k: i[k] for k in ("id", "team_id", "title", "owner_id", "priority", "resolution_note")},
                 "created_at": _ts(i["created_at"]), "solved_at": _ts(i["solved_at"]),
                 "source_measurable_id": (i["source"] or {}).get("measurable_id"),
-                "source_week": _d((i["source"] or {}).get("week_start")), "updated_at": None,
+                "source_week": _d((i["source"] or {}).get("week_start")), "updated_at": None, "version": 1,
             }
             for i in seed["issues"]
         ]),
