@@ -1,6 +1,7 @@
 """API test client: the real FastAPI app, a real Postgres session rolled back after each test, a frozen clock."""
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
@@ -13,7 +14,10 @@ NOW = parse_utc("2026-11-11T15:00:00Z")
 
 @pytest.fixture
 def session(db):
-    # App commits become savepoints inside the test's outer transaction, which is rolled back.
+    # App commits become savepoints inside the test's outer transaction, which is rolled back. The app's
+    # statements run as the API's own least-privilege role (migration 0009), as they do in production: a route
+    # that needs a right the role lacks fails here first.
+    db.execute(text("SET LOCAL ROLE l10_app"))
     with Session(bind=db, join_transaction_mode="create_savepoint", expire_on_commit=False) as s:
         yield s
 

@@ -241,3 +241,18 @@ def test_sessions_expire(client):
     assert client.get("/me").status_code == 401
     client.cookies.set(SESSION_COOKIE, sign_session("u2"))
     assert client.get("/me").status_code == 200
+
+
+# ---------- the session secret ----------
+
+def test_a_configured_session_secret_signs_sessions(as_user, monkeypatch):
+    """Production sets SESSION_SECRET: signing in and being recognised must work with it."""
+    monkeypatch.setenv("SESSION_SECRET", "a-production-secret")
+    assert as_user("u2").get("/me").json()["user"]["id"] == "u2"
+
+
+def test_an_empty_session_secret_means_the_development_one(monkeypatch):
+    from app.api.deps import _DEV_SECRET, _secret
+
+    monkeypatch.setenv("SESSION_SECRET", "")  # compose passes it through empty when it isn't set
+    assert _secret() == _DEV_SECRET.encode()

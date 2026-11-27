@@ -47,7 +47,7 @@ def now(clock: Clock = Depends(get_clock)) -> datetime:
 # ---------- signed session cookie ----------
 
 def _secret() -> bytes:
-    return os.environ.get("SESSION_SECRET", _DEV_SECRET).encode()
+    return (os.environ.get("SESSION_SECRET") or _DEV_SECRET).encode()  # empty counts as unset (compose passes it through)
 
 
 def sign_session(user_id: str, issued_at: int | None = None) -> str:

@@ -6,9 +6,9 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: l10
-      POSTGRES_PASSWORD: l10
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-l10}  # the owner's: set it before the first `up` (applied once)
       POSTGRES_DB: l10
-    ports: ["5433:5432"]
+    ports: ["127.0.0.1:5433:5432"]  # this machine only
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U l10 -d l10"]
@@ -18,16 +18,18 @@ services:
 
   migrate:
     build: ./api
-    command: ["alembic", "upgrade", "head"]
+    pull_policy: build  # always this checkout's code: an old image would run old migrations
+    command: ["sh", "-c", "alembic upgrade head && python -m app.db.app_role"]
     environment: &api-env
-      DATABASE_URL: postgresql+psycopg://l10:l10@db:5432/l10  # the owner: migrations and seed --reset only
+      DATABASE_URL: postgresql+psycopg://l10:${POSTGRES_PASSWORD:-l10}@db:5432/l10  # the owner: migrations and seed only
       APP_NOW: ${APP_NOW:-2026-11-11T15:00:00Z}
-      L10_APP_DB_PASSWORD: ${L10_APP_DB_PASSWORD:-l10_app}  # migration 0009 creates the API's role with it
+      L10_APP_DB_PASSWORD: ${L10_APP_DB_PASSWORD:-l10_app}  # app.db.app_role applies it on every `up`
     depends_on:
       db: {condition: service_healthy}
 
   seed:
     build: ./api
+    pull_policy: build
     command: ["python", "-m", "app.db.seed", "/seed/seed.json"]
     environment: *api-env
     volumes: [./seed.json:/seed/seed.json:ro]
@@ -36,11 +38,14 @@ services:
 
   api:
     build: ./api
+    pull_policy: build
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       <<: *api-env
       # least privilege: no DELETE anywhere, history append-only, owns nothing (migration 0009)
       DATABASE_URL: postgresql+psycopg://l10_app:${L10_APP_DB_PASSWORD:-l10_app}@db:5432/l10
+      SESSION_SECRET: ${SESSION_SECRET:-}  # empty: the development secret
+      COOKIE_SECURE: ${COOKIE_SECURE:-0}
     ports: ["8000:8000"]
     depends_on:
       seed: {condition: service_completed_successfully}
@@ -51,6 +56,7 @@ services:
       retries: 20
 
   web:
+    pull_policy: build
     build:
       context: ./web
       args: {API_URL: "http://api:8000"}

@@ -6,7 +6,7 @@ One place for a team's weekly numbers (Scorecard), quarterly Rocks, To-Dos and I
 ```bash
 docker compose up --build        # db → migrate → seed → api → web
 ```
-Open **http://localhost:3000**, pick a seeded user, and a second browser (or private window) as someone else. API docs: **http://localhost:8000/docs**; Postgres on port 5433. The seed is safe to rerun (`docker compose run --rm seed` keeps your changes); `seed --reset` restores exactly the seed, and `make reset` wipes the volume.
+Open **http://localhost:3000**, pick a seeded user, and open a second browser (or private window) as someone else. API docs: **http://localhost:8000/docs**; Postgres on port 5433. The seed is safe to rerun (`docker compose run --rm seed` keeps your changes); `seed --reset` restores exactly the seed, and `make reset` wipes the volume.
 
 | Try as | Role | Teams |
 |---|---|---|
@@ -16,7 +16,7 @@ Open **http://localhost:3000**, pick a seeded user, and a second browser (or pri
 
 ## Test
 ```bash
-make test     # every layer, unattended: 374 pytest (rules, DB, API) + 8 Playwright tests, run in Chromium and in Firefox
+make test     # every layer, unattended: 358 pytest (rules, DB, API) + 8 Playwright tests, run in Chromium and in Firefox
 ```
 Requires Docker, [uv](https://docs.astral.sh/uv/) and pnpm (`make test-api` / `make e2e` run one layer). **[docs/testing.md](docs/testing.md)**: fixture and clock strategy, and the committed failure trace in `docs/artifacts/`.
 
@@ -28,9 +28,9 @@ APP_NOW=2026-11-23T15:00:00Z make rules-report  # any other date
 It reseeds a database and prints the JSON for `APP_NOW`; the default-date output is committed as **[rules_report.json](rules_report.json)**. The API uses the same rule functions (`api/app/rules/`).
 
 ## Bonus
-- **Lost-update protection.** Scores and Issues carry a `version`; the UI sends the one the user **saw when they started editing**, and a stale save gets **409 `stale_write`** saying who changed it (*"Blake Brooks changed this to 2.5 a moment ago. Your 3.4 wasn't saved."*). One conditional `UPDATE … WHERE version = :seen` decides (8 simultaneous saves → one winner). Without `expected_version` the API keeps last-save-wins.
-- **Make it an Issue from an off-track Rock or an overdue To-Do**, with the same no-duplicates rule (a partial unique index per source plus `INSERT … ON CONFLICT`, one shared path). Eligibility is checked on the server under a lock; an Issue has at most one source (CHECK).
-- **Audit trail.** Every change records who, what (before → after) and when, in the same transaction, so refused or rolled-back writes leave no trace and no-ops record nothing. `audit_events` is append-only twice over: a trigger rejects UPDATE, DELETE and TRUNCATE, and the API runs as a least-privilege database role that can only read and append it (owning nothing, it can't disable the trigger). Only `seed --reset`, as the owner, may purge it, by opt-in. Read it at `GET /teams/{id}/audit` (cursor-paginated, or one record's history) or in the live **Activity** card. A coverage test makes every write route prove it records exactly one event.
+- **Lost-update protection.** Scores and Issues carry a `version`; the UI sends the one the user **saw when they started editing**, and a stale save gets **409 `stale_write`** saying who changed it (*"Blake Brooks changed this to 2.5 a moment ago. Your 3.4 wasn't saved."*). One conditional `UPDATE … WHERE version = :seen` decides (8 simultaneous saves → one winner).
+- **Make it an Issue from an off-track Rock or an overdue To-Do**, with the same no-duplicates rule and code path; eligibility is checked on the server under a lock.
+- **Audit trail.** Every change records who, what (before → after) and when, in the same transaction; refused writes and no-ops record nothing. `audit_events` is append-only twice over: a trigger rejects UPDATE, DELETE and TRUNCATE, and the API runs as a least-privilege database role: it can append events (never choosing their id or place) but not change or remove them, writes only the tables it must, and owns nothing. Only `seed --reset`, as the owner, may purge it, by opt-in. Read it at `GET /teams/{id}/audit` (paginated, or one record's history) or in the live **Activity** card; a coverage test makes every write route record exactly one event.
 
 ## Decisions
 **[docs/decisions.md](docs/decisions.md)** (one page): data model, API design, real-time and recovery, duplicate-free Make it an Issue, frozen summaries.
@@ -47,8 +47,8 @@ It reseeds a database and prints the JSON for `APP_NOW`; the default-date output
 ## Known limitations
 - Summaries are computed on read, not frozen (see decision 5).
 - Scores and milestone completion carry no timestamps, so "as of now" can't hide them at earlier dates.
-- Audit trail: event ids share one sequence, so their gaps hint at how busy other teams are.
-- Security: no CSRF token (SameSite=Lax cookie, JSON-only bodies). Sessions are stateless and expire after 12 h, so logout can't revoke a copied cookie. Set `SESSION_SECRET`, `L10_APP_DB_PASSWORD` and `COOKIE_SECURE=1` outside local development.
+- Audit trail: the app writes its own events, so the API's credentials could add a false one or change data without one (never alter a recorded one). Event ids share one sequence: gaps hint at how busy other teams are.
+- Security: no CSRF token (SameSite=Lax cookie, JSON-only bodies). Sessions are stateless and expire after 12 h, so logout can't revoke a copied cookie. Outside local development set `POSTGRES_PASSWORD` (before the first `up`), `L10_APP_DB_PASSWORD`, `SESSION_SECRET` and `COOKIE_SECURE=1`.
 - No facilitator handoff, and no dark-mode toggle.
 
 **At 1,000 companies** (a design note, not a load test): cache statuses per (team, week), invalidated by the same NOTIFY; sticky routing or a broker for SSE fan-out; a NOTIFY channel per company; `company_id` scoping on every query plus Postgres row-level security.
