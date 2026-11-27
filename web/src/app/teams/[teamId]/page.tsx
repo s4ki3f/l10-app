@@ -1,5 +1,6 @@
 "use client";
 import { useParams } from "next/navigation";
+import { ActivitySection } from "@/components/sections/activity-section";
 import { IssuesSection } from "@/components/sections/issues-section";
 import { RocksSection } from "@/components/sections/rocks-section";
 import { ScorecardSection } from "@/components/sections/scorecard-section";
@@ -18,7 +19,10 @@ export default function TeamPage() {
             <IssuesSection teamId={teamId} canWrite={me.can_write} />
             <TodosSection teamId={teamId} canWrite={me.can_write} />
           </div>
-          <RocksSection teamId={teamId} canWrite={me.can_write} />
+          <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
+            <RocksSection teamId={teamId} canWrite={me.can_write} />
+            <ActivitySection teamId={teamId} />
+          </div>
         </div>
       )}
     </TeamShell>

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session
 
+from ...audit import record
 from ...db import models as m
 from ...db.load import issue_of, todo_of
 from ...realtime import publish
@@ -98,6 +99,8 @@ def create_issue(
                     created_at=at, updated_at=at)
     db.add(issue)
     db.flush()
+    record(db, team_id=team.id, actor_id=user.id, action="issue.created", entity_type="issue", entity_id=issue.id,
+           label=issue.title, at=at, changes={"title": issue.title, "priority": issue.priority})
     publish(db, team.id, "issues")
     db.commit()
     return issues_out(db, [issue])[0]
@@ -120,6 +123,9 @@ def add_todo(
     )
     db.add(todo)
     db.flush()
+    record(db, team_id=issue.team_id, actor_id=user.id, action="todo.created", entity_type="todo", entity_id=todo.id,
+           label=todo.title, at=at,
+           changes={"owner_id": todo.owner_id, "due_date": todo.due_date, "source_issue_id": issue.id})
     publish(db, issue.team_id, "todos")
     db.commit()
     return todos_out(db, [todo], at)[0]
@@ -142,7 +148,9 @@ def list_todos(team: m.Team = Depends(team_reader), db: Session = Depends(get_db
 @router.patch("/issues/{issue_id}", response_model=IssueOut, summary="Set or clear an unsolved Issue's priority")
 def set_priority(issue_id: IdPath, body: IssuePatch, user: CurrentUser = Depends(current_user),
                  db: Session = Depends(get_db), at: datetime = Depends(now)):
-    issue = load_in_team(db, m.Issue, issue_id, user, write=True, what="issue")
+    load_in_team(db, m.Issue, issue_id, user, write=True, what="issue")
+    issue = lock(db, m.Issue, m.Issue.id == issue_id)  # exact "before" for the audit trail
+    old_priority = issue.priority
     # Check-and-write in ONE statement: "still unsolved as of now" (and, if given, "still the version you saw")
     # are WHERE conditions, so a solve that commits between our read and our write can't be overwritten.
     stmt = update(m.Issue).where(m.Issue.id == issue.id, _unsolved_as_of(at))
@@ -157,6 +165,8 @@ def set_priority(issue_id: IdPath, body: IssuePatch, user: CurrentUser = Depends
             raise conflict("issue_solved", "a solved Issue can't be reprioritized")
         raise AppError(409, "stale_write", "someone changed this Issue's priority after you loaded it",
                        current={"priority": current.priority, "version": current.version})
+    record(db, team_id=issue.team_id, actor_id=user.id, action="issue.priority_changed", entity_type="issue",
+           entity_id=issue.id, label=issue.title, at=at, changes={"priority": [old_priority, body.priority]})
     publish(db, issue.team_id, "issues")
     db.commit()
     db.refresh(issue)
@@ -174,6 +184,8 @@ def solve_issue(issue_id: IdPath, body: SolveIn, user: CurrentUser = Depends(cur
     if solved is None:
         db.rollback()
         raise conflict("issue_solved", "this Issue is already solved")
+    record(db, team_id=issue.team_id, actor_id=user.id, action="issue.solved", entity_type="issue", entity_id=issue.id,
+           label=issue.title, at=at, changes={"resolution_note": body.note})
     publish(db, issue.team_id, "issues")
     db.commit()
     db.refresh(issue)
@@ -190,7 +202,11 @@ def _unsolved_as_of(at: datetime):
 def _set_done(db: Session, todo_id: str, user: CurrentUser, at: datetime, done: bool) -> TodoOut:
     load_in_team(db, m.Todo, todo_id, user, write=True, what="to-do")
     todo = lock(db, m.Todo, m.Todo.id == todo_id)  # serialises with Make it an Issue on this To-Do
+    old_done_at = todo.done_at
     todo.done_at, todo.updated_at = (at if done else None), at
+    record(db, team_id=todo.team_id, actor_id=user.id, action="todo.done" if done else "todo.undone",
+           entity_type="todo", entity_id=todo.id, label=todo.title, at=at,
+           changes={"done_at": [old_done_at, todo.done_at]})
     publish(db, todo.team_id, "todos")
     db.commit()
     return todos_out(db, [todo], at)[0]

@@ -34,7 +34,7 @@
 **4. Duplicate-free Make it an Issue.**
 - **Choice.** The database decides. The partial unique index on `(source_measurable_id, source_week) WHERE solved_at IS NULL` is combined with `INSERT … ON CONFLICT DO NOTHING RETURNING id`.
   - The request whose insert went through gets **201**; everyone else gets the winner's Issue with **200**.
-  - The server recomputes whether the cell is off track (409 if not).
+  - The server recomputes whether the cell is off track (409 if not). Writes to one cell also take that cell's lock (it may have no score row to lock yet), so clicks on a cell queue; the index stays the guarantee.
 - **Rejected.** Check-then-insert in code. In the concurrency test (12 threads, real commits), removing the index produced **12 duplicates**.
 - **Cost.** Only unsolved Issues are unique, so a cell can raise a new Issue after the old one is solved (the seed's i6).
 

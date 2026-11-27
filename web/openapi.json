@@ -2610,6 +2610,157 @@
     }
    }
   },
+  "/teams/{team_id}/audit": {
+   "get": {
+    "tags": [
+     "audit"
+    ],
+    "summary": "Bonus \u2014 the team's audit trail, newest first; cursor-paginated; optionally one record's history",
+    "operationId": "team_audit_teams__team_id__audit_get",
+    "parameters": [
+     {
+      "name": "team_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
+       "title": "Team Id"
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 200,
+       "minimum": 1,
+       "default": 50,
+       "title": "Limit"
+      }
+     },
+     {
+      "name": "before",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "minimum": 1
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Only events older than this id (from next_before)",
+       "title": "Before"
+      },
+      "description": "Only events older than this id (from next_before)"
+     },
+     {
+      "name": "entity_type",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "enum": [
+          "issue",
+          "todo",
+          "score",
+          "meeting"
+         ],
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Entity Type"
+      }
+     },
+     {
+      "name": "entity_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "pattern": "^[A-Za-z0-9_:-]{1,96}$"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Entity Id"
+      }
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AuditPage"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/health": {
    "get": {
     "tags": [
@@ -2731,6 +2882,107 @@
      "role"
     ],
     "title": "AttendeeOut"
+   },
+   "AuditEntity": {
+    "properties": {
+     "type": {
+      "type": "string",
+      "enum": [
+       "issue",
+       "todo",
+       "score",
+       "meeting"
+      ],
+      "title": "Type"
+     },
+     "id": {
+      "type": "string",
+      "title": "Id",
+      "description": "A score's id is \"<measurable>:<week>\""
+     },
+     "label": {
+      "type": "string",
+      "title": "Label",
+      "description": "Its name at the time of the change"
+     }
+    },
+    "type": "object",
+    "required": [
+     "type",
+     "id",
+     "label"
+    ],
+    "title": "AuditEntity"
+   },
+   "AuditEventOut": {
+    "properties": {
+     "id": {
+      "type": "integer",
+      "title": "Id"
+     },
+     "at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "At"
+     },
+     "actor": {
+      "$ref": "#/components/schemas/PersonRef"
+     },
+     "action": {
+      "type": "string",
+      "title": "Action",
+      "description": "e.g. issue.created, issue.raised, issue.priority_changed, issue.solved, todo.created, todo.done, todo.undone, score.set, meeting.started, meeting.joined, meeting.advanced, meeting.rated, meeting.ended"
+     },
+     "entity": {
+      "$ref": "#/components/schemas/AuditEntity"
+     },
+     "changes": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Changes",
+      "description": "field \u2192 [before, after]; on create, the values set"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "at",
+     "actor",
+     "action",
+     "entity",
+     "changes"
+    ],
+    "title": "AuditEventOut"
+   },
+   "AuditPage": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/AuditEventOut"
+      },
+      "type": "array",
+      "title": "Items",
+      "description": "Newest first"
+     },
+     "next_before": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Next Before",
+      "description": "Pass as ?before= for the next (older) page; null on the last page"
+     }
+    },
+    "type": "object",
+    "required": [
+     "items",
+     "next_before"
+    ],
+    "title": "AuditPage"
    },
    "CellOut": {
     "properties": {

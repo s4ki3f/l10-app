@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from sqlalchemy import text
 
 from .api import errors
-from .api.routes import auth, events, issues, meetings, rocks, scorecard, teams
+from .api.routes import audit, auth, events, issues, meetings, rocks, scorecard, teams
 from .db.load import last_app_write
 from .db.session import get_engine, session_factory
 from .rules.clock import RunningClock, app_now_from_env
@@ -47,6 +47,7 @@ app.include_router(scorecard.router)
 app.include_router(meetings.router)
 app.include_router(events.router)
 app.include_router(rocks.router)
+app.include_router(audit.router)
 
 
 @app.get("/health", tags=["ops"], summary="Liveness plus database reachability and the app clock")

@@ -191,3 +191,38 @@ def test_a_rock_from_another_quarter_is_409(as_user):
     app.state.clock = FrozenClock(NOW + timedelta(days=60))  # 2027-Q1: the Rocks list is empty, so is this
     r = as_user("u3").post("/rocks/r4/issue")
     assert (r.status_code, r.json()["error"]["code"]) == (409, "not_current_quarter")
+
+
+# ---------- empty Scorecard cells: a row lock needs a row, so cell writes take the cell's own lock ----------
+
+def _cell_writer_sql(measurable_id: str, week: str, value: float) -> str:
+    """What a concurrent put_score does on an empty cell: take the cell lock, insert the first score."""
+    from datetime import date
+
+    from app.api.raise_issue import cell_lock_key
+
+    key = cell_lock_key(measurable_id, date.fromisoformat(week))
+    return (f"SELECT pg_advisory_xact_lock(hashtextextended('{key}', 0)); "
+            f"INSERT INTO scores (measurable_id, week_start, value) VALUES ('{measurable_id}', '{week}', {value})")
+
+
+def test_first_score_saved_meanwhile_on_an_empty_cell_is_not_made_an_issue(real_db):
+    try:  # m5 has no score for Nov 2: a closed week with no score is off track — until the first score lands
+        r = _race(real_db, _cell_writer_sql("m5", "2026-11-02", 600), lambda c: c.post("/measurables/m5/weeks/2026-11-02/issue"))
+        assert (r.status_code, r.json()["error"]["code"]) == (409, "not_off_track")
+    finally:
+        with real_db.begin() as conn:
+            conn.execute(text("DELETE FROM scores WHERE measurable_id = 'm5' AND week_start = '2026-11-02'"))
+
+
+def test_racing_first_saves_audit_the_real_before(real_db):
+    try:  # m1 has no score for Nov 9 yet; another first save lands while ours waits
+        r = _race(real_db, _cell_writer_sql("m1", "2026-11-09", 7), lambda c: c.put("/measurables/m1/weeks/2026-11-09/score", json={"value": 9}))
+        assert r.status_code == 200
+        with real_db.connect() as conn:
+            changes = conn.execute(text("SELECT changes FROM audit_events WHERE entity_id = 'm1:2026-11-09' "
+                                        "ORDER BY id DESC LIMIT 1")).scalar()
+        assert changes == {"value": [7.0, 9.0]}  # not [null, 9]: the first save is what we overwrote
+    finally:
+        with real_db.begin() as conn:
+            conn.execute(text("DELETE FROM scores WHERE measurable_id = 'm1' AND week_start = '2026-11-09'"))

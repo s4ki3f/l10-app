@@ -481,6 +481,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/teams/{team_id}/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Bonus — the team's audit trail, newest first; cursor-paginated; optionally one record's history */
+        get: operations["team_audit_teams__team_id__audit_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -540,6 +557,61 @@ export interface components {
             name: string;
             /** Role */
             role: string;
+        };
+        /** AuditEntity */
+        AuditEntity: {
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "issue" | "todo" | "score" | "meeting";
+            /**
+             * Id
+             * @description A score's id is "<measurable>:<week>"
+             */
+            id: string;
+            /**
+             * Label
+             * @description Its name at the time of the change
+             */
+            label: string;
+        };
+        /** AuditEventOut */
+        AuditEventOut: {
+            /** Id */
+            id: number;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            actor: components["schemas"]["PersonRef"];
+            /**
+             * Action
+             * @description e.g. issue.created, issue.raised, issue.priority_changed, issue.solved, todo.created, todo.done, todo.undone, score.set, meeting.started, meeting.joined, meeting.advanced, meeting.rated, meeting.ended
+             */
+            action: string;
+            entity: components["schemas"]["AuditEntity"];
+            /**
+             * Changes
+             * @description field → [before, after]; on create, the values set
+             */
+            changes: {
+                [key: string]: unknown;
+            };
+        };
+        /** AuditPage */
+        AuditPage: {
+            /**
+             * Items
+             * @description Newest first
+             */
+            items: components["schemas"]["AuditEventOut"][];
+            /**
+             * Next Before
+             * @description Pass as ?before= for the next (older) page; null on the last page
+             */
+            next_before: number | null;
         };
         /** CellOut */
         CellOut: {
@@ -2733,6 +2805,64 @@ export interface operations {
             };
             /** @description The Rock is not off track */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    team_audit_teams__team_id__audit_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                /** @description Only events older than this id (from next_before) */
+                before?: number | null;
+                entity_type?: ("issue" | "todo" | "score" | "meeting") | null;
+                entity_id?: string | null;
+            };
+            header?: never;
+            path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
+                team_id: string;
+            };
+            cookie?: {
+                l10_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditPage"];
+                };
+            };
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

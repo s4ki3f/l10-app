@@ -13,10 +13,12 @@ from sqlalchemy import select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from ...audit import record
 from ...db import models as m
 from ...db.load import load_dataset
 from ...realtime import publish
 from ...rules import engine
+from ...rules.weeks import local_date
 from ..deps import CurrentUser, current_user, get_db, load_in_team, now, team_reader, team_writer
 from ..errors import conflict, forbidden
 from ..schemas import (
@@ -65,9 +67,21 @@ def _active(db: Session, team_id: str) -> m.Meeting | None:
     return db.scalars(select(m.Meeting).where(m.Meeting.team_id == team_id, m.Meeting.ended_at.is_(None))).first()
 
 
-def _join(db: Session, meeting_id: str, user_id: str, at: datetime) -> None:
-    db.execute(insert(m.MeetingAttendee).values(meeting_id=meeting_id, user_id=user_id, joined_at=at)
-               .on_conflict_do_nothing(index_elements=["meeting_id", "user_id"]))
+def _join(db: Session, meeting_id: str, user_id: str, at: datetime) -> bool:
+    """Record the attendance once; True if this call added it (a re-join is a no-op and isn't audited)."""
+    return db.execute(insert(m.MeetingAttendee).values(meeting_id=meeting_id, user_id=user_id, joined_at=at)
+                      .on_conflict_do_nothing(index_elements=["meeting_id", "user_id"])
+                      .returning(m.MeetingAttendee.user_id)).scalar() is not None
+
+
+def _meeting_label(mt: m.Meeting) -> str:
+    day = local_date(mt.started_at)
+    return f"Level 10 Meeting, {day.strftime('%b')} {day.day}"
+
+
+def _audit(db: Session, mt: m.Meeting, user: CurrentUser, action: str, at: datetime, changes: dict | None = None):
+    record(db, team_id=mt.team_id, actor_id=user.id, action=action, entity_type="meeting", entity_id=mt.id,
+           label=_meeting_label(mt), at=at, changes=changes)
 
 
 def _load_live(db: Session, meeting_id: str, user: CurrentUser, *, write: bool) -> m.Meeting:
@@ -116,7 +130,11 @@ def start_meeting(response: Response, team: m.Team = Depends(team_writer), user:
     mt = db.get(m.Meeting, inserted) if inserted else _active(db, team.id)
     if mt is None:  # the live one ended between our conflict and our read
         raise conflict("retry", "the team's meeting just changed; try again")
-    _join(db, mt.id, user.id, at)
+    joined = _join(db, mt.id, user.id, at)
+    if inserted:
+        _audit(db, mt, user, "meeting.started", at)
+    elif joined:  # someone else's meeting was already live: this Start joined it
+        _audit(db, mt, user, "meeting.joined", at)
     publish(db, team.id, "meeting", meeting_id=mt.id)
     db.commit()
     if not inserted:
@@ -129,7 +147,8 @@ def start_meeting(response: Response, team: m.Team = Depends(team_writer), user:
 def join_meeting(meeting_id: IdPath, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db),
                  at: datetime = Depends(now)):
     mt = _load_live(db, meeting_id, user, write=False)
-    _join(db, mt.id, user.id, at)
+    if _join(db, mt.id, user.id, at):
+        _audit(db, mt, user, "meeting.joined", at)
     publish(db, mt.team_id, "meeting", meeting_id=mt.id)
     db.commit()
     return meeting_state(db, mt, at)
@@ -151,6 +170,7 @@ def advance_meeting(meeting_id: IdPath, body: AdvanceIn, user: CurrentUser = Dep
     if not moved:
         db.rollback()
         raise conflict("stale_section", "the meeting already moved on; refresh")
+    _audit(db, mt, user, "meeting.advanced", at, {"section": [body.from_section, target]})
     publish(db, mt.team_id, "meeting", meeting_id=mt.id)
     db.commit()
     db.refresh(mt)
@@ -163,6 +183,7 @@ def end_meeting(meeting_id: IdPath, user: CurrentUser = Depends(current_user), d
     mt = _load_live(db, meeting_id, user, write=True)
     _require_facilitator(mt, user)
     db.execute(update(m.Meeting).where(m.Meeting.id == mt.id, m.Meeting.ended_at.is_(None)).values(ended_at=at))
+    _audit(db, mt, user, "meeting.ended", at)
     publish(db, mt.team_id, "meeting", meeting_id=mt.id)
     db.commit()
     db.refresh(mt)
@@ -178,8 +199,12 @@ def rate_meeting(meeting_id: IdPath, body: RatingIn, user: CurrentUser = Depends
         raise conflict("not_conclude", "ratings open in Conclude")
     if db.get(m.MeetingAttendee, {"meeting_id": mt.id, "user_id": user.id}) is None:
         raise conflict("not_attending", "join the meeting to rate it")
+    # a plain column read (not an ORM object): the session must not cache a row the upsert below changes
+    old_rating = db.scalar(select(m.MeetingRating.rating).where(
+        m.MeetingRating.meeting_id == mt.id, m.MeetingRating.user_id == user.id))
     db.execute(insert(m.MeetingRating).values(meeting_id=mt.id, user_id=user.id, rating=body.rating, updated_at=at)
                .on_conflict_do_update(index_elements=["meeting_id", "user_id"], set_={"rating": body.rating, "updated_at": at}))
+    _audit(db, mt, user, "meeting.rated", at, {"rating": [old_rating, body.rating]})
     publish(db, mt.team_id, "meeting", meeting_id=mt.id)
     db.commit()
     return meeting_state(db, mt, at)

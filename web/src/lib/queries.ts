@@ -1,5 +1,5 @@
 "use client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, ApiError, unwrap } from "./api/client";
 import type { Me, Section } from "./api/types";
@@ -44,6 +44,18 @@ export const useRocks = (teamId: string) =>
   useQuery({
     queryKey: keys.topic(teamId, "rocks"),
     queryFn: async () => unwrap(await api.GET("/teams/{team_id}/rocks", team(teamId))),
+  });
+
+/** Bonus: the audit trail, newest first; older pages via the server's cursor. */
+export const useActivity = (teamId: string) =>
+  useInfiniteQuery({
+    queryKey: keys.topic(teamId, "activity"),
+    initialPageParam: undefined as number | undefined,
+    queryFn: async ({ pageParam }) =>
+      unwrap(await api.GET("/teams/{team_id}/audit", {
+        params: { path: { team_id: teamId }, query: { limit: 15, ...(pageParam ? { before: pageParam } : {}) } },
+      })),
+    getNextPageParam: (last) => last.next_before ?? undefined,
   });
 
 export const useActiveMeeting = (teamId: string) =>

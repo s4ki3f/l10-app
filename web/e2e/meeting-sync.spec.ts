@@ -117,7 +117,8 @@ test("a change made while the browser is still connecting is not lost (listen, t
   expect((await casey.post("/api/teams/team_lead/issues", { data: { title } })).status()).toBe(201);
 
   await expect(follower.getByTestId("live-status")).toHaveAttribute("data-status", "live", { timeout: 6_000 });
-  await expect(follower.getByText(title)).toBeVisible({ timeout: 2_000 }); // no other change will arrive to rescue it
+  // no other change will arrive to rescue it (scoped: the Activity feed shows the title too)
+  await expect(follower.getByTestId("issues-open").getByText(title)).toBeVisible({ timeout: 2_000 });
 });
 
 test("bonus: a stale score edit is refused instead of overwriting someone else (two browsers)", async ({ browser }) => {
@@ -226,4 +227,27 @@ test("bonus: a double-click on Make it an Issue never ticks the To-Do (even with
   expect((await t12()).done_at).toBeNull();
   await expect(page.getByTestId("todo-t12").locator('input[type="checkbox"]')).not.toBeChecked();
   await api.dispose();
+});
+
+test("bonus: the audit trail records who changed what, and another browser sees it live", async ({ browser }) => {
+  const second = await firefox.launch();
+  const casey = await signIn(browser, "u3"); // Chromium
+  const blake = await signIn(second, "u2"); // Firefox
+  try {
+    await expect(blake.getByTestId("live-status")).toHaveAttribute("data-status", "live");
+    await expect(blake.getByTestId("activity")).toBeVisible();
+
+    const title = `Audit me ${Date.now()}`; // unique per run: no reset needed
+    await casey.getByLabel("New Issue title").fill(title);
+    await casey.getByRole("button", { name: "Add", exact: true }).click();
+
+    // Blake didn't reload: the change arrives as a hint and the feed refetches.
+    await expect(blake.getByTestId("activity").locator("li").first())
+      .toContainText(`Casey Cho created Issue “${title}”`, { timeout: FOLLOW_MS });
+    // and the history can't be edited from the UI: the feed has no controls
+    await expect(blake.getByTestId("activity").getByRole("button")).toHaveCount(0);
+  } finally {
+    await blake.context().close();
+    await second.close();
+  }
 });

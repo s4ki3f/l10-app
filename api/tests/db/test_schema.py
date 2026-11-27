@@ -11,6 +11,7 @@ DELETE_ONLY = {
     "meetings(facilitator_id)", "meeting_attendees(user_id)", "scores(updated_by)",
     "teams(company_id)", "users(company_id)",
     "todos(source_issue_id,team_id)",
+    "audit_events(actor_id)",  # the audit feed is read by team (indexed), never by actor; users are never deleted
 }
 
 UNINDEXED_FKS = text("""

@@ -14,15 +14,17 @@ from decimal import Decimal
 
 from sqlalchemy import (
     and_, or_,
-    CheckConstraint, Date, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, Numeric,
+    BigInteger, CheckConstraint, Identity, Date, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, Numeric,
     PrimaryKeyConstraint, String, Text, UniqueConstraint, text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 ROLES = ("admin", "team_member", "observer")
 GOAL_TYPES = ("at_least", "at_most", "between", "exactly")
 ROCK_STATUSES = ("on_track", "off_track", "complete")
 SECTIONS = ("scorecard", "ids", "conclude")
+AUDIT_ENTITIES = ("issue", "todo", "score", "meeting")
 
 
 def open_as_of(at):
@@ -271,3 +273,29 @@ class MeetingRating(Base):
     user_id: Mapped[str] = mapped_column(Id)
     rating: Mapped[int] = mapped_column(Integer)
     updated_at: Mapped[datetime | None] = mapped_column(Ts)  # last app write (null for seed ratings)
+
+
+class AuditEvent(Base):
+    """Who changed what, when — written in the same transaction as the change (app.audit.record).
+
+    Append-only, enforced by a database trigger (migration 0008): UPDATE, DELETE and TRUNCATE are rejected;
+    only `seed --reset` may purge, after SET LOCAL l10.audit_purge = 'on'.
+    """
+    __tablename__ = "audit_events"
+    __table_args__ = (
+        CheckConstraint(r"action ~ '^[a-z]+\.[a-z_]+$'", name="audit_action_format"),
+        CheckConstraint(_in("entity_type", AUDIT_ENTITIES), name="audit_entity_type_valid"),
+        CheckConstraint("jsonb_typeof(changes) = 'object'", name="audit_changes_object"),
+        Index("ix_audit_team", "team_id", "id"),
+        Index("ix_audit_entity", "entity_type", "entity_id", "id"),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    team_id: Mapped[str] = mapped_column(ForeignKey("teams.id"))
+    actor_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    action: Mapped[str] = mapped_column(String(48))  # e.g. issue.priority_changed
+    entity_type: Mapped[str] = mapped_column(String(16))
+    entity_id: Mapped[str] = mapped_column(String(96))  # a score's id is "<measurable>:<week>"
+    entity_label: Mapped[str] = mapped_column(Text)  # the name at the time (history keeps its names)
+    changes: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))  # field → [before, after]
+    at: Mapped[datetime] = mapped_column(Ts)  # app clock, like every other timestamp
+

@@ -13,3 +13,4 @@ export type Rock = S["RockOut"];
 export type MeetingState = S["MeetingState"];
 export type Summary = S["SummaryOut"];
 export type Section = MeetingState["section"];
+export type AuditEvent = S["AuditEventOut"];

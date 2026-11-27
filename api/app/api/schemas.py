@@ -287,3 +287,31 @@ class RockOut(BaseModel):
     progress_percent: int
     milestones: list[MilestoneOut]
     open_issue_id: str | None = Field(None, description="The unsolved Issue made from this Rock, if any")
+
+
+# ---------- audit trail (bonus) ----------
+
+AuditEntityType = Literal["issue", "todo", "score", "meeting"]
+
+
+class AuditEntity(BaseModel):
+    type: AuditEntityType
+    id: str = Field(description="A score's id is \"<measurable>:<week>\"")
+    label: str = Field(description="Its name at the time of the change")
+
+
+class AuditEventOut(BaseModel):
+    id: int
+    at: datetime
+    actor: PersonRef
+    action: str = Field(description="e.g. issue.created, issue.raised, issue.priority_changed, issue.solved, "
+                                    "todo.created, todo.done, todo.undone, score.set, meeting.started, "
+                                    "meeting.joined, meeting.advanced, meeting.rated, meeting.ended")
+    entity: AuditEntity
+    changes: dict = Field(description="field → [before, after]; on create, the values set")
+
+
+class AuditPage(BaseModel):
+    items: list[AuditEventOut] = Field(description="Newest first")
+    next_before: int | None = Field(description="Pass as ?before= for the next (older) page; null on the last page")
+

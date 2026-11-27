@@ -16,12 +16,12 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
-from sqlalchemy import Connection, delete, tuple_, update
+from sqlalchemy import Connection, delete, text, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 
 from ..rules.weeks import parse_utc
 from .models import (
-    Company, Issue, Measurable, Meeting, MeetingAttendee, MeetingRating, Membership, Milestone, Rock, Score, Team,
+    AuditEvent, Company, Issue, Measurable, Meeting, MeetingAttendee, MeetingRating, Membership, Milestone, Rock, Score, Team,
     Todo, User,
 )
 from .session import get_engine
@@ -119,6 +119,11 @@ def load_seed(conn: Connection, seed: dict, *, exact: bool = False) -> None:
 def reset_to_seed(conn: Connection, seed: dict) -> None:
     """Remove app-created rows (children first), then load the seed."""
     ids = lambda key: [x["id"] for x in seed[key]]  # noqa: E731
+    # The seed has no history, so neither does a reset database. audit_events is append-only; this operator tool
+    # is the one place allowed to purge it, and it opts in for exactly this statement (the app never does).
+    conn.execute(text("SET LOCAL l10.audit_purge = 'on'"))
+    conn.execute(delete(AuditEvent))
+    conn.execute(text("SET LOCAL l10.audit_purge = 'off'"))
     conn.execute(delete(Meeting).where(Meeting.id.not_in(ids("meetings"))))  # attendees/ratings cascade
     conn.execute(delete(MeetingRating))  # seeded ratings are re-inserted below; this drops ratings added later
     conn.execute(delete(MeetingAttendee).where(MeetingAttendee.meeting_id.in_(ids("meetings"))))

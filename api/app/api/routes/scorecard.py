@@ -11,6 +11,7 @@ from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from ...audit import record, score_entity_id
 from ...db import models as m
 from ...db.load import goal_of
 from ...realtime import publish
@@ -18,7 +19,7 @@ from ...rules import engine
 from ...rules.weeks import last_closed_week, scorecard_weeks, week_of
 from ..deps import CurrentUser, current_user, get_db, load_in_team, now, team_reader
 from ..errors import AppError, conflict, invalid
-from ..raise_issue import cell_source, lock, open_issue, raise_or_return
+from ..raise_issue import cell_source, lock_cell, open_issue, raise_or_return
 from .issues import issues_out
 from ..schemas import CellOut, GoalOut, IdPath, IssueOut, PersonRef, ScoreIn, ScorecardOut, ScorecardRow
 
@@ -70,8 +71,9 @@ def make_it_an_issue(
 ):
     measurable = load_in_team(db, m.Measurable, measurable_id, user, write=True, what="measurable")
     week = cell_week(week, at)
-    # lock the score (if any) so a concurrent edit can't make the cell on track between check and insert
-    lock(db, m.Score, m.Score.measurable_id == measurable.id, m.Score.week_start == week)
+    # take the cell's lock so a concurrent score edit — or a first score on an empty cell — can't make it
+    # on track between our check and our insert
+    lock_cell(db, measurable.id, week)
 
     def off_track() -> None:
         if cell_status(db, measurable, week, at) != "off_track":
@@ -129,6 +131,8 @@ def put_score(
 ):
     measurable = load_in_team(db, m.Measurable, measurable_id, user, write=True, what="measurable")
     week = cell_week(week, at)
+    before = lock_cell(db, measurable.id, week)  # writers of this cell queue here, so `before` is exact
+    old = None if before is None else before.value
     fields = {"value": body.value, "updated_at": at, "updated_by": user.id}
     cell = (m.Score.measurable_id == measurable.id) & (m.Score.week_start == week)
     ev = body.expected_version
@@ -146,6 +150,9 @@ def put_score(
     if version is None:
         db.rollback()
         raise _stale_score(db, measurable.id, week)
+    record(db, team_id=measurable.team_id, actor_id=user.id, action="score.set", entity_type="score",
+           entity_id=score_entity_id(measurable.id, week), label=issue_title(measurable.name, week), at=at,
+           changes={"value": [old, body.value]})
     publish(db, measurable.team_id, "scorecard")
     db.commit()
     issue = open_issue(db, cell_source(measurable, week), at)

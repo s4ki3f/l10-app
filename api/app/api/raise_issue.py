@@ -13,6 +13,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import TextClause
 
+from ..audit import record
 from ..db import models as m
 from ..realtime import publish
 from .deps import assert_valid_owner
@@ -52,6 +53,21 @@ def lock(db: Session, model, *where):
     return db.scalars(select(model).where(*where).with_for_update().execution_options(populate_existing=True)).first()
 
 
+CELL_LOCK = text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))")
+
+
+def cell_lock_key(measurable_id: str, week) -> str:
+    return f"l10-cell:{measurable_id}:{week.isoformat()}"
+
+
+def lock_cell(db: Session, measurable_id: str, week) -> m.Score | None:
+    """Every write to one Scorecard cell (saving its score, making it an Issue) takes this lock first, so they
+    run one at a time even when the cell has no score row yet — a row lock needs a row. Returns the cell's
+    score as committed now (also row-locked, so any other writer of the row waits too)."""
+    db.execute(CELL_LOCK, {"key": cell_lock_key(measurable_id, week)})
+    return lock(db, m.Score, m.Score.measurable_id == measurable_id, m.Score.week_start == week)
+
+
 def open_issue(db: Session, src: Source, at: datetime) -> m.Issue | None:
     """The source's unsolved Issue as of `at` (the same rule as the Issues list and the rules report)."""
     return db.scalars(select(m.Issue).where(src.matches(), m.open_as_of(at)).order_by(m.Issue.created_at)).first()
@@ -79,6 +95,8 @@ def raise_or_return(db: Session, src: Source, *, title: str, owner_id: str, at: 
             .returning(m.Issue.id)
         ).scalar()
         if inserted:
+            record(db, team_id=src.team_id, actor_id=owner_id, action="issue.raised", entity_type="issue",
+                   entity_id=inserted, label=title, at=at, changes={"source": src.columns})
             publish(db, src.team_id, "issues")
         db.commit()
         if inserted:

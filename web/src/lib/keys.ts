@@ -1,5 +1,5 @@
 /** Query keys. Everything for a team lives under ["team", teamId, topic] so an SSE hint maps to one prefix. */
-export type Topic = "scorecard" | "issues" | "todos" | "rocks" | "meeting" | "members";
+export type Topic = "scorecard" | "issues" | "todos" | "rocks" | "meeting" | "members" | "activity";
 
 export const keys = {
   me: ["me"] as const,
@@ -14,8 +14,9 @@ export const keys = {
 
 /** Which cached topics an SSE hint (or our own write) makes stale. */
 export const AFFECTS: Record<string, Topic[]> = {
-  scorecard: ["scorecard"],
-  issues: ["issues", "scorecard", "rocks", "todos"], // cells, Rocks and To-Dos show their open Issue
-  todos: ["todos", "meeting"], // Conclude lists the meeting's new To-Dos
-  meeting: ["meeting"],
+  // every change is also an audit event, so every hint refreshes the Activity feed
+  scorecard: ["scorecard", "activity"],
+  issues: ["issues", "scorecard", "rocks", "todos", "activity"], // cells, Rocks and To-Dos show their open Issue
+  todos: ["todos", "meeting", "activity"], // Conclude lists the meeting's new To-Dos
+  meeting: ["meeting", "activity"],
 };
