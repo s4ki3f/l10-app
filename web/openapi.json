@@ -1152,6 +1152,110 @@
     }
    }
   },
+  "/todos/{todo_id}/issue": {
+   "post": {
+    "tags": [
+     "issues"
+    ],
+    "summary": "Bonus \u2014 Make it an Issue from an overdue To-Do, or return its existing unsolved Issue (200)",
+    "operationId": "issue_from_todo_todos__todo_id__issue_post",
+    "parameters": [
+     {
+      "name": "todo_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
+       "title": "Todo Id"
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/IssueOut"
+        }
+       }
+      }
+     },
+     "200": {
+      "description": "An unsolved Issue already existed for this To-Do; it is returned"
+     },
+     "409": {
+      "description": "The To-Do is not overdue",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Your role can't do this (Observers can read but not change data)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/measurables/{measurable_id}/weeks/{week}/issue": {
    "post": {
     "tags": [
@@ -2402,6 +2506,110 @@
     }
    }
   },
+  "/rocks/{rock_id}/issue": {
+   "post": {
+    "tags": [
+     "rocks"
+    ],
+    "summary": "Bonus \u2014 Make it an Issue from an off-track Rock, or return its existing unsolved Issue (200)",
+    "operationId": "issue_from_rock_rocks__rock_id__issue_post",
+    "parameters": [
+     {
+      "name": "rock_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^[A-Za-z0-9_-]{1,64}$",
+       "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026",
+       "title": "Rock Id"
+      },
+      "description": "Record id, e.g. team_lead, i5, mt_3f2a\u2026"
+     },
+     {
+      "name": "l10_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "L10 Session"
+      }
+     }
+    ],
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/IssueOut"
+        }
+       }
+      }
+     },
+     "200": {
+      "description": "An unsolved Issue already existed for this Rock; it is returned"
+     },
+     "409": {
+      "description": "The Rock is not off track",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Your role can't do this (Observers can read but not change data)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/health": {
    "get": {
     "tags": [
@@ -2767,7 +2975,30 @@
        {
         "type": "null"
        }
-      ]
+      ],
+      "description": "The Scorecard cell this Issue came from"
+     },
+     "source_rock": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ItemRef"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The off-track Rock this Issue came from"
+     },
+     "source_todo": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ItemRef"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The overdue To-Do this Issue came from"
      }
     },
     "type": "object",
@@ -3152,6 +3383,18 @@
       },
       "type": "array",
       "title": "Milestones"
+     },
+     "open_issue_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Open Issue Id",
+      "description": "The unsolved Issue made from this Rock, if any"
      }
     },
     "type": "object",
@@ -3530,6 +3773,18 @@
        }
       ],
       "description": "The Issue this To-Do came from"
+     },
+     "open_issue_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Open Issue Id",
+      "description": "The unsolved Issue made from this To-Do, if any"
      }
     },
     "type": "object",

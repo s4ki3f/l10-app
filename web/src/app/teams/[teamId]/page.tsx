@@ -18,7 +18,7 @@ export default function TeamPage() {
             <IssuesSection teamId={teamId} canWrite={me.can_write} />
             <TodosSection teamId={teamId} canWrite={me.can_write} />
           </div>
-          <RocksSection teamId={teamId} />
+          <RocksSection teamId={teamId} canWrite={me.can_write} />
         </div>
       )}
     </TeamShell>

@@ -1,11 +1,12 @@
 "use client";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Rock } from "@/lib/api/types";
-import { useRocks } from "@/lib/queries";
+import { call, useApiMutation, useRocks } from "@/lib/queries";
 import { formatDay } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
@@ -15,8 +16,8 @@ const STATUS: Record<Rock["status"], { label: string; cls: string }> = {
   complete: { label: "Complete", cls: "border-primary" },
 };
 
-/** Read-only: Rocks and Milestones come from the seed. */
-export function RocksSection({ teamId }: { teamId: string }) {
+/** Rocks and Milestones come from the seed; an off-track Rock can be made an Issue (bonus). */
+export function RocksSection({ teamId, canWrite }: { teamId: string; canWrite: boolean }) {
   const q = useRocks(teamId);
   return (
     <Card>
@@ -39,6 +40,7 @@ export function RocksSection({ teamId }: { teamId: string }) {
                 <span className="w-9 text-right text-xs tabular-nums">{r.progress_percent}%</span>
               </div>
               <Badge variant="outline" className={STATUS[r.status].cls}>{STATUS[r.status].label}</Badge>
+              {r.status === "off_track" && <RockIssue teamId={teamId} rock={r} canWrite={canWrite} />}
             </CollapsibleTrigger>
             <CollapsibleContent>
               <ul className="border-t px-3 py-2 text-sm">
@@ -58,5 +60,21 @@ export function RocksSection({ teamId }: { teamId: string }) {
         ))}
       </CardContent>
     </Card>
+  );
+}
+
+function RockIssue({ teamId, rock, canWrite }: { teamId: string; rock: Rock; canWrite: boolean }) {
+  const raise = useApiMutation(teamId, ["issues", "rocks"], () => call.issueFromRock(rock.id),
+    { success: `“Rock off track: ${rock.title}” is on the Issues list` });
+  if (rock.open_issue_id) return <Badge variant="outline">Issue</Badge>;
+  if (!canWrite) return null;
+  return (
+    <Button asChild size="sm" variant="ghost" className="h-6 px-2 text-xs text-destructive">
+      <span role="button" tabIndex={0} data-testid={`issue-from-${rock.id}`}
+            onClick={(e) => { e.stopPropagation(); raise.mutate(undefined); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); raise.mutate(undefined); } }}>
+        Make it an Issue
+      </span>
+    </Button>
   );
 }

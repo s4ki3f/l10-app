@@ -113,6 +113,8 @@ function IssueRow({ teamId, issue, index, canWrite, current }: { teamId: string;
           <div className="mt-0.5 text-xs text-muted-foreground">
             {issue.owner.name} · raised {formatMoment(issue.created_at)}
             {issue.source && <> · from <b>{issue.source.measurable_name}</b>, week of {formatDay(issue.source.week_start)}</>}
+            {issue.source_rock && <> · from Rock <b>{issue.source_rock.title}</b></>}
+            {issue.source_todo && <> · from overdue To-Do <b>{issue.source_todo.title}</b></>}
           </div>
           {solved && (
             <div className="mt-2 rounded bg-muted px-2 py-1 text-sm">

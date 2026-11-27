@@ -15,7 +15,7 @@ export const keys = {
 /** Which cached topics an SSE hint (or our own write) makes stale. */
 export const AFFECTS: Record<string, Topic[]> = {
   scorecard: ["scorecard"],
-  issues: ["issues", "scorecard"], // cells show their open Issue
+  issues: ["issues", "scorecard", "rocks", "todos"], // cells, Rocks and To-Dos show their open Issue
   todos: ["todos", "meeting"], // Conclude lists the meeting's new To-Dos
   meeting: ["meeting"],
 };

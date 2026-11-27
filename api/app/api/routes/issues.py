@@ -1,7 +1,7 @@
 """Issues and the To-Dos that come from them. Order and flags are computed by app.rules, never in the browser."""
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session
 
@@ -14,6 +14,7 @@ from ..deps import (
     CurrentUser, assert_valid_owner, current_user, get_db, load_in_team, now, team_reader, team_writer,
 )
 from ..errors import AppError, conflict
+from ..raise_issue import raise_or_return, todo_source
 from ..schemas import (
     CompletionOut, IdPath, IssueCreate, ItemRef, IssueOut, IssuePatch, IssueSource, PersonRef, SolveIn, TodoCreate, TodoList, TodoOut,
 )
@@ -32,12 +33,18 @@ def issues_out(db: Session, rows: list[m.Issue]) -> list[IssueOut]:
     names = _people(db, (r.owner_id for r in rows))
     src_ids = {r.source_measurable_id for r in rows if r.source_measurable_id}
     measurables = {x.id: x.name for x in db.scalars(select(m.Measurable).where(m.Measurable.id.in_(src_ids)))} if src_ids else {}
+    rock_ids = {r.source_rock_id for r in rows if r.source_rock_id}
+    rocks = {x.id: x.title for x in db.scalars(select(m.Rock).where(m.Rock.id.in_(rock_ids)))} if rock_ids else {}
+    todo_ids = {r.source_todo_id for r in rows if r.source_todo_id}
+    todos = {x.id: x.title for x in db.scalars(select(m.Todo).where(m.Todo.id.in_(todo_ids)))} if todo_ids else {}
     return [
         IssueOut(
             id=r.id, version=r.version, team_id=r.team_id, title=r.title, owner=PersonRef(id=r.owner_id, name=names[r.owner_id]),
             priority=r.priority, created_at=r.created_at, solved_at=r.solved_at, resolution_note=r.resolution_note,
             source=IssueSource(measurable_id=r.source_measurable_id, measurable_name=measurables[r.source_measurable_id],
                                week_start=r.source_week) if r.source_measurable_id else None,
+            source_rock=ItemRef(id=r.source_rock_id, title=rocks[r.source_rock_id]) if r.source_rock_id else None,
+            source_todo=ItemRef(id=r.source_todo_id, title=todos[r.source_todo_id]) if r.source_todo_id else None,
         )
         for r in rows
     ]
@@ -47,12 +54,15 @@ def todos_out(db: Session, rows: list[m.Todo], at: datetime) -> list[TodoOut]:
     names = _people(db, (r.owner_id for r in rows))
     src = {r.source_issue_id for r in rows if r.source_issue_id}
     titles = {i.id: i.title for i in db.scalars(select(m.Issue).where(m.Issue.id.in_(src)))} if src else {}
+    raised = {i.source_todo_id: i.id for i in db.scalars(select(m.Issue).where(
+        m.Issue.source_todo_id.in_([r.id for r in rows]), m.open_as_of(at)))} if rows else {}
     return [
         TodoOut(
             id=r.id, team_id=r.team_id, title=r.title, owner=PersonRef(id=r.owner_id, name=names[r.owner_id]),
             due_date=r.due_date, done_at=r.done_at if engine.happened(r.done_at, at) else None, created_at=r.created_at,
             overdue=engine.is_overdue(todo_of(r), at),
             source_issue=ItemRef(id=r.source_issue_id, title=titles[r.source_issue_id]) if r.source_issue_id else None,
+            open_issue_id=raised.get(r.id),
         )
         for r in rows
     ]
@@ -195,3 +205,22 @@ def mark_done(todo_id: IdPath, user: CurrentUser = Depends(current_user), db: Se
 def undo_done(todo_id: IdPath, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db),
               at: datetime = Depends(now)):
     return _set_done(db, todo_id, user, at, False)
+
+
+@router.post("/todos/{todo_id}/issue", response_model=IssueOut, status_code=status.HTTP_201_CREATED,
+             summary="Bonus — Make it an Issue from an overdue To-Do, or return its existing unsolved Issue (200)",
+             responses={200: {"description": "An unsolved Issue already existed for this To-Do; it is returned"},
+                        409: {"description": "The To-Do is not overdue"}})
+def issue_from_todo(response: Response, todo_id: IdPath, user: CurrentUser = Depends(current_user),
+                    db: Session = Depends(get_db), at: datetime = Depends(now)):
+    todo = load_in_team(db, m.Todo, todo_id, user, write=True, what="to-do")
+
+    def overdue() -> None:
+        if todo.created_at > at or not engine.is_overdue(todo_of(todo), at):
+            raise conflict("not_overdue", "only an overdue To-Do can be made an Issue")
+
+    issue, created = raise_or_return(db, todo_source(todo), title=f"Overdue To-Do: {todo.title}",
+                                     owner_id=user.id, at=at, check_eligible=overdue)
+    if not created:
+        response.status_code = status.HTTP_200_OK
+    return issues_out(db, [issue])[0]

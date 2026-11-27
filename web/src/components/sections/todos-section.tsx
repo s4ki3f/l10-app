@@ -1,5 +1,6 @@
 "use client";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Todo } from "@/lib/api/types";
@@ -47,6 +48,8 @@ export function TodosSection({ teamId, canWrite }: { teamId: string; canWrite: b
 
 function TodoRow({ teamId, todo, canWrite }: { teamId: string; todo: Todo; canWrite: boolean }) {
   const toggle = useApiMutation(teamId, ["todos"], (done: boolean) => call.setDone(todo.id, done));
+  const raise = useApiMutation(teamId, ["issues", "todos"], () => call.issueFromTodo(todo.id),
+    { success: `“Overdue To-Do: ${todo.title}” is on the Issues list` });
   const isDone = !!todo.done_at;
   return (
     <label className={cn("flex items-start gap-3 rounded-md px-2 py-1.5 hover:bg-muted/50", isDone && "text-muted-foreground")}
@@ -62,6 +65,12 @@ function TodoRow({ teamId, todo, canWrite }: { teamId: string; todo: Todo; canWr
         </span>
       </span>
       {todo.overdue && <Badge variant="destructive">Overdue</Badge>}
+      {todo.overdue && (todo.open_issue_id ? <Badge variant="outline">Issue</Badge> : canWrite && (
+        <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-destructive" data-testid={`issue-from-${todo.id}`}
+                onClick={(e) => { e.preventDefault(); raise.mutate(undefined); }} disabled={raise.isPending}>
+          Make it an Issue
+        </Button>
+      ))}
     </label>
   );
 }

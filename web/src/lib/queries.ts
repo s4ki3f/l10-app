@@ -108,6 +108,10 @@ export const call = {
     api.POST("/measurables/{measurable_id}/weeks/{week}/issue", {
       params: { path: { measurable_id: measurableId, week } },
     }).then(unwrap),
+  issueFromRock: (rockId: string) =>
+    api.POST("/rocks/{rock_id}/issue", { params: { path: { rock_id: rockId } } }).then(unwrap),
+  issueFromTodo: (todoId: string) =>
+    api.POST("/todos/{todo_id}/issue", { params: { path: { todo_id: todoId } } }).then(unwrap),
   createIssue: (teamId: string, title: string, priority: number | null) =>
     api.POST("/teams/{team_id}/issues", { ...team(teamId), body: { title, priority } }).then(unwrap),
   setPriority: (issueId: string, priority: number | null, expectedVersion: number) =>

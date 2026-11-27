@@ -165,7 +165,7 @@ def team_scoped_routes():
 def fill(path: str) -> str:
     # point every id at a Leadership record that Sales-only u6 must not reach
     return re.sub(r"\{(\w+)\}", lambda mt: {"team_id": "team_lead", "issue_id": "i1", "todo_id": "t30",
-                                             "meeting_id": "mt1", "measurable_id": "m1", "week": "2026-11-02"}.get(mt.group(1), "x"), path)
+                                             "meeting_id": "mt1", "measurable_id": "m1", "week": "2026-11-02", "rock_id": "r2"}.get(mt.group(1), "x"), path)
 
 
 # A minimal VALID body per write route, so validation can't answer first and hide a missing guard.
@@ -197,7 +197,8 @@ def test_every_write_route_has_a_valid_probe_body():
     writes = {(m, p) for m, p in team_scoped_routes() if m != "GET"}
     bodiless = {("POST", "/teams/{team_id}/meetings"), ("POST", "/meetings/{meeting_id}/join"),
                 ("POST", "/meetings/{meeting_id}/end"), ("POST", "/todos/{todo_id}/done"), ("POST", "/todos/{todo_id}/undo"),
-                ("POST", "/measurables/{measurable_id}/weeks/{week}/issue")}
+                ("POST", "/measurables/{measurable_id}/weeks/{week}/issue"),
+                ("POST", "/rocks/{rock_id}/issue"), ("POST", "/todos/{todo_id}/issue")}
     assert writes - bodiless <= set(VALID_BODY), f"add a probe body for: {sorted(writes - bodiless - set(VALID_BODY))}"
 
 

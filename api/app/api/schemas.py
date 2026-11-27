@@ -92,7 +92,9 @@ class IssueOut(BaseModel):
     created_at: datetime
     solved_at: datetime | None
     resolution_note: str | None
-    source: IssueSource | None
+    source: IssueSource | None = Field(description="The Scorecard cell this Issue came from")
+    source_rock: ItemRef | None = Field(None, description="The off-track Rock this Issue came from")
+    source_todo: ItemRef | None = Field(None, description="The overdue To-Do this Issue came from")
 
 
 class IssueCreate(Strict):
@@ -115,6 +117,7 @@ class TodoOut(BaseModel):
     created_at: datetime
     overdue: bool
     source_issue: ItemRef | None = Field(None, description="The Issue this To-Do came from")
+    open_issue_id: str | None = Field(None, description="The unsolved Issue made from this To-Do, if any")
 
 
 # ---------- meetings ----------
@@ -283,3 +286,4 @@ class RockOut(BaseModel):
     status: Literal["on_track", "off_track", "complete"]
     progress_percent: int
     milestones: list[MilestoneOut]
+    open_issue_id: str | None = Field(None, description="The unsolved Issue made from this Rock, if any")

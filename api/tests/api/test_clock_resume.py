@@ -49,6 +49,8 @@ WRITES = {
     ("PUT", "/measurables/{measurable_id}/weeks/{week}/score"): lambda c: act(c, "PUT", "/measurables/m1/weeks/2026-11-09/score", {"value": 3}),
     ("POST", "/measurables/{measurable_id}/weeks/{week}/issue"): lambda c: act(c, "POST", "/measurables/m1/weeks/2026-10-26/issue"),
     ("POST", "/teams/{team_id}/meetings"): lambda c: act(c, "POST", "/teams/team_lead/meetings"),
+    ("POST", "/rocks/{rock_id}/issue"): lambda c: act(c, "POST", "/rocks/r2/issue"),  # r2 is off track
+    ("POST", "/todos/{todo_id}/issue"): lambda c: act(c, "POST", "/todos/t31/issue"),  # t31 is overdue
     ("POST", "/meetings/{meeting_id}/advance"): lambda c: act(c, "POST", f"/meetings/{live_meeting(c)}/advance", {"from_section": "scorecard"}),
     ("POST", "/meetings/{meeting_id}/end"): lambda c: act(c, "POST", f"/meetings/{live_meeting(c)}/end"),
     ("PUT", "/meetings/{meeting_id}/rating"): lambda c: act(c, "PUT", f"/meetings/{live_meeting(c, 'conclude')}/rating", {"rating": 9}),

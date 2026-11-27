@@ -133,6 +133,7 @@ class Rock(Base):
         CheckConstraint(_in("status", ROCK_STATUSES), name="rock_status_valid"),
         CheckConstraint(r"quarter ~ '^\d{4}-Q[1-4]$'", name="rock_quarter_format"),
         Index("ix_rocks_team", "team_id"),
+        UniqueConstraint("id", "team_id", name="uq_rocks_id_team"),  # target of same-team FKs
     )
     id: Mapped[str] = mapped_column(Id, primary_key=True)
     team_id: Mapped[str] = mapped_column(ForeignKey("teams.id"))
@@ -179,6 +180,17 @@ class Issue(Base):
         ),
         Index("ix_issue_team_open", "team_id", postgresql_where=text("solved_at IS NULL")),
         Index("ix_issues_source_measurable", "source_measurable_id", "team_id"),
+        ForeignKeyConstraint(["source_rock_id", "team_id"], ["rocks.id", "rocks.team_id"],
+                             name="issues_source_rock_same_team_fkey"),
+        ForeignKeyConstraint(["source_todo_id", "team_id"], ["todos.id", "todos.team_id"],
+                             name="issues_source_todo_same_team_fkey"),
+        CheckConstraint("(source_measurable_id IS NOT NULL)::int + (source_rock_id IS NOT NULL)::int"
+                        " + (source_todo_id IS NOT NULL)::int <= 1", name="issue_at_most_one_source"),
+        # Bonus: one unsolved Issue per Rock and per To-Do, decided by the database like Scorecard cells.
+        Index("uq_issue_open_per_source_rock", "source_rock_id", "team_id", unique=True,
+              postgresql_where=text("solved_at IS NULL AND source_rock_id IS NOT NULL")),
+        Index("uq_issue_open_per_source_todo", "source_todo_id", "team_id", unique=True,
+              postgresql_where=text("solved_at IS NULL AND source_todo_id IS NOT NULL")),
     )
     id: Mapped[str] = mapped_column(Id, primary_key=True, default=lambda: new_id("i"))
     team_id: Mapped[str] = mapped_column(ForeignKey("teams.id"))
@@ -190,6 +202,8 @@ class Issue(Base):
     resolution_note: Mapped[str | None] = mapped_column(Text)
     source_measurable_id: Mapped[str | None] = mapped_column(Id)
     source_week: Mapped[date | None] = mapped_column(Date)
+    source_rock_id: Mapped[str | None] = mapped_column(Id)
+    source_todo_id: Mapped[str | None] = mapped_column(Id)
     updated_at: Mapped[datetime | None] = mapped_column(Ts)  # last app write (null for untouched seed rows)
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))  # bumped by every write (lost-update check)
 
@@ -201,7 +215,8 @@ class Todo(Base):
         CheckConstraint("length(btrim(title)) > 0", name="todo_title_present"),
         CheckConstraint("done_at IS NULL OR done_at >= created_at", name="todo_done_after_created"),
         ForeignKeyConstraint(["source_issue_id", "team_id"], ["issues.id", "issues.team_id"],
-                             name="todos_source_issue_same_team_fkey"),
+                             name="todos_source_issue_same_team_fkey", use_alter=True),
+        UniqueConstraint("id", "team_id", name="uq_todos_id_team"),  # target of same-team FKs
         Index("ix_todo_team_due", "team_id", "due_date"),
     )
     id: Mapped[str] = mapped_column(Id, primary_key=True, default=lambda: new_id("t"))

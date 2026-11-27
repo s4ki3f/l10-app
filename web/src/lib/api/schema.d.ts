@@ -226,6 +226,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/todos/{todo_id}/issue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bonus — Make it an Issue from an overdue To-Do, or return its existing unsolved Issue (200) */
+        post: operations["issue_from_todo_todos__todo_id__issue_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/measurables/{measurable_id}/weeks/{week}/issue": {
         parameters: {
             query?: never;
@@ -447,6 +464,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rocks/{rock_id}/issue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bonus — Make it an Issue from an off-track Rock, or return its existing unsolved Issue (200) */
+        post: operations["issue_from_rock_rocks__rock_id__issue_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -594,7 +628,12 @@ export interface components {
             solved_at: string | null;
             /** Resolution Note */
             resolution_note: string | null;
+            /** @description The Scorecard cell this Issue came from */
             source: components["schemas"]["IssueSource"] | null;
+            /** @description The off-track Rock this Issue came from */
+            source_rock?: components["schemas"]["ItemRef"] | null;
+            /** @description The overdue To-Do this Issue came from */
+            source_todo?: components["schemas"]["ItemRef"] | null;
         };
         /** IssuePatch */
         IssuePatch: {
@@ -750,6 +789,11 @@ export interface components {
             progress_percent: number;
             /** Milestones */
             milestones: components["schemas"]["MilestoneOut"][];
+            /**
+             * Open Issue Id
+             * @description The unsolved Issue made from this Rock, if any
+             */
+            open_issue_id?: string | null;
         };
         /** ScoreIn */
         ScoreIn: {
@@ -891,6 +935,11 @@ export interface components {
             overdue: boolean;
             /** @description The Issue this To-Do came from */
             source_issue?: components["schemas"]["ItemRef"] | null;
+            /**
+             * Open Issue Id
+             * @description The unsolved Issue made from this To-Do, if any
+             */
+            open_issue_id?: string | null;
         };
         /** UserOut */
         UserOut: {
@@ -1723,6 +1772,83 @@ export interface operations {
             };
         };
     };
+    issue_from_todo_todos__todo_id__issue_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
+                todo_id: string;
+            };
+            cookie?: {
+                l10_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description An unsolved Issue already existed for this To-Do; it is returned */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssueOut"];
+                };
+            };
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Your role can't do this (Observers can read but not change data) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description The To-Do is not overdue */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
     make_it_an_issue_measurables__measurable_id__weeks__week__issue_post: {
         parameters: {
             query?: never;
@@ -2530,6 +2656,83 @@ export interface operations {
             };
             /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    issue_from_rock_rocks__rock_id__issue_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Record id, e.g. team_lead, i5, mt_3f2a… */
+                rock_id: string;
+            };
+            cookie?: {
+                l10_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description An unsolved Issue already existed for this Rock; it is returned */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssueOut"];
+                };
+            };
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Your role can't do this (Observers can read but not change data) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description The Rock is not off track */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

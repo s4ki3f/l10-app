@@ -155,3 +155,27 @@ test("bonus: a stale score edit is refused instead of overwriting someone else (
     await second.close();
   }
 });
+
+test("bonus: an off-track Rock and an overdue To-Do become Issues; another browser sees them live", async ({ browser }) => {
+  const second = await firefox.launch();
+  const casey = await signIn(browser, "u3");
+  const blake = await signIn(second, "u2");
+  try {
+    // Make each an Issue unless an earlier run already did (the suite runs in two engines without a reset).
+    for (const id of ["r2", "t31"]) {
+      const button = casey.getByTestId(`issue-from-${id}`);
+      if (await button.isVisible()) await button.click();
+    }
+    for (const page of [casey, blake]) {
+      await expect(page.getByTestId("issues-open")).toContainText("Rock off track: Hire VP of Sales", { timeout: FOLLOW_MS });
+      await expect(page.getByTestId("issues-open")).toContainText("Overdue To-Do: Send portal beta invites", { timeout: FOLLOW_MS });
+      await expect(page.getByTestId("rock-r2")).toContainText("Issue");
+      await expect(page.getByTestId("issue-from-r2")).toHaveCount(0); // no second Issue for the same Rock
+    }
+    const observer = await signIn(browser, "u5");
+    await expect(observer.getByText("Make it an Issue")).toHaveCount(0);
+  } finally {
+    await blake.context().close();
+    await second.close();
+  }
+});

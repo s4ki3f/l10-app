@@ -16,7 +16,7 @@ Open **http://localhost:3000**, pick a seeded user, and open a second browser (o
 
 ## Test
 ```bash
-make test     # every layer, unattended: 270 pytest (rules, DB, API) + 5 Playwright tests, run in Chromium and in Firefox
+make test     # every layer, unattended: 291 pytest (rules, DB, API) + 6 Playwright tests, run in Chromium and in Firefox
 ```
 Requires Docker, [uv](https://docs.astral.sh/uv/) and pnpm (`make test-api` / `make e2e` run one layer). **[docs/testing.md](docs/testing.md)**: fixture and clock strategy, and the committed failure trace in `docs/artifacts/`.
 
@@ -27,8 +27,10 @@ APP_NOW=2026-11-23T15:00:00Z make rules-report  # any other date
 ```
 It reseeds a fresh database and prints the JSON for `APP_NOW`; the default-date output is committed as **[rules_report.json](rules_report.json)**. The API uses the same rule functions (`api/app/rules/`).
 
-## Bonus: lost-update protection
-Scores and Issues carry a `version`. The UI sends the version the user **saw when they started editing**; if someone saved in between, the save gets **409 `stale_write`** and the screen says who changed it (*"Blake Brooks changed this to 2.5 a moment ago. Your 3.4 wasn't saved."*). One conditional `UPDATE … WHERE version = :seen` decides, so 8 simultaneous saves on one version give exactly one winner. Without `expected_version` the API keeps last-save-wins.
+## Bonus
+**Lost-update protection.** Scores and Issues carry a `version`. The UI sends the version the user **saw when they started editing**; if someone saved in between, the save gets **409 `stale_write`** and the screen says who changed it (*"Blake Brooks changed this to 2.5 a moment ago. Your 3.4 wasn't saved."*). One conditional `UPDATE … WHERE version = :seen` decides, so 8 simultaneous saves on one version give exactly one winner. Without `expected_version` the API keeps last-save-wins.
+
+**Make it an Issue from an off-track Rock or an overdue To-Do** (`POST /rocks/{id}/issue`, `POST /todos/{id}/issue`), with the same no-duplicates rule: a partial unique index per source kind plus `INSERT … ON CONFLICT`, shared with the Scorecard path. Eligibility is computed on the server (409 otherwise); an Issue has at most one source (CHECK).
 
 ## Decisions
 **[docs/decisions.md](docs/decisions.md)** (one page): data model, API design, real-time and recovery, duplicate-free Make it an Issue, frozen summaries.

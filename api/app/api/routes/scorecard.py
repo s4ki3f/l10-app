@@ -7,7 +7,7 @@ every other request (including ones arriving at the same instant) gets the winne
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, Path, Response, status
-from sqlalchemy import select, text, update
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -16,14 +16,13 @@ from ...db.load import goal_of
 from ...realtime import publish
 from ...rules import engine
 from ...rules.weeks import last_closed_week, scorecard_weeks, week_of
-from ..deps import CurrentUser, assert_valid_owner, current_user, get_db, load_in_team, now, team_reader
+from ..deps import CurrentUser, current_user, get_db, load_in_team, now, team_reader
 from ..errors import AppError, conflict, invalid
+from ..raise_issue import cell_source, open_issue, raise_or_return
 from .issues import issues_out
 from ..schemas import CellOut, GoalOut, IdPath, IssueOut, PersonRef, ScoreIn, ScorecardOut, ScorecardRow
 
 router = APIRouter(tags=["scorecard"])
-
-OPEN_CELL = text("solved_at IS NULL AND source_measurable_id IS NOT NULL")  # the partial index's predicate
 
 
 def issue_title(measurable_name: str, week: date) -> str:
@@ -53,20 +52,6 @@ def cell_status(db: Session, measurable: m.Measurable, week: date, at: datetime)
     return engine.measurable_status(goal_of(measurable), score.value if score else None, week, week_of(at))
 
 
-def _open_issue(db: Session, measurable_id: str, week: date, at: datetime) -> m.Issue | None:
-    """The cell's unsolved Issue as of `at` (same rule as the Issues list and the rules report)."""
-    return db.scalars(select(m.Issue).where(
-        m.Issue.source_measurable_id == measurable_id, m.Issue.source_week == week, m.open_as_of(at)
-    ).order_by(m.Issue.created_at)).first()
-
-
-def _index_holder(db: Session, measurable_id: str, week: date) -> m.Issue | None:
-    """The row the partial unique index says is unsolved (stored truth, used after an ON CONFLICT)."""
-    return db.scalars(select(m.Issue).where(
-        m.Issue.source_measurable_id == measurable_id, m.Issue.source_week == week, m.Issue.solved_at.is_(None)
-    )).first()
-
-
 @router.post(
     "/measurables/{measurable_id}/weeks/{week}/issue",
     response_model=IssueOut,
@@ -86,36 +71,15 @@ def make_it_an_issue(
     measurable = load_in_team(db, m.Measurable, measurable_id, user, write=True, what="measurable")
     week = cell_week(week, at)
 
-    existing = _open_issue(db, measurable.id, week, at)
-    if existing is not None:  # fast path; the insert below is what makes it race-safe
+    def off_track() -> None:
+        if cell_status(db, measurable, week, at) != "off_track":
+            raise conflict("not_off_track", "only an off-track cell can be made an Issue")
+
+    issue, created = raise_or_return(db, cell_source(measurable, week), title=issue_title(measurable.name, week),
+                                     owner_id=user.id, at=at, check_eligible=off_track)
+    if not created:
         response.status_code = status.HTTP_200_OK
-        return issues_out(db, [existing])[0]
-
-    if cell_status(db, measurable, week, at) != "off_track":
-        raise conflict("not_off_track", "only an off-track cell can be made an Issue")
-    assert_valid_owner(db, measurable.team_id, user.id)
-
-    for _attempt in range(2):
-        new_id = m.new_id("i")
-        stmt = (
-            insert(m.Issue)
-            .values(id=new_id, team_id=measurable.team_id, title=issue_title(measurable.name, week), owner_id=user.id,
-                    priority=None, created_at=at, updated_at=at, source_measurable_id=measurable.id, source_week=week)
-            .on_conflict_do_nothing(index_elements=["source_measurable_id", "source_week"], index_where=OPEN_CELL)
-            .returning(m.Issue.id)
-        )
-        inserted = db.execute(stmt).scalar()
-        if inserted:
-            publish(db, measurable.team_id, "issues")
-        db.commit()
-        if inserted:
-            return issues_out(db, [db.get(m.Issue, inserted)])[0]
-        winner = _index_holder(db, measurable.id, week)
-        if winner is not None:
-            response.status_code = status.HTTP_200_OK
-            return issues_out(db, [winner])[0]
-        # the winner was solved between our conflict and our read: the cell is free again, try once more
-    raise AppError(503, "retry", "the Issue changed while it was being created; try again")
+    return issues_out(db, [issue])[0]
 
 
 # ---------- reading and editing the Scorecard ----------
@@ -182,7 +146,7 @@ def put_score(
         raise _stale_score(db, measurable.id, week)
     publish(db, measurable.team_id, "scorecard")
     db.commit()
-    issue = _open_issue(db, measurable.id, week, at)
+    issue = open_issue(db, cell_source(measurable, week), at)
     return CellOut(week_start=week, version=version, value=float(body.value),
                    status=engine.measurable_status(goal_of(measurable), body.value, week, week_of(at)),
                    open_issue_id=issue.id if issue else None)
