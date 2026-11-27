@@ -178,8 +178,8 @@ def rate_meeting(meeting_id: IdPath, body: RatingIn, user: CurrentUser = Depends
         raise conflict("not_conclude", "ratings open in Conclude")
     if db.get(m.MeetingAttendee, {"meeting_id": mt.id, "user_id": user.id}) is None:
         raise conflict("not_attending", "join the meeting to rate it")
-    db.execute(insert(m.MeetingRating).values(meeting_id=mt.id, user_id=user.id, rating=body.rating)
-               .on_conflict_do_update(index_elements=["meeting_id", "user_id"], set_={"rating": body.rating}))
+    db.execute(insert(m.MeetingRating).values(meeting_id=mt.id, user_id=user.id, rating=body.rating, updated_at=at)
+               .on_conflict_do_update(index_elements=["meeting_id", "user_id"], set_={"rating": body.rating, "updated_at": at}))
     publish(db, mt.team_id, "meeting", meeting_id=mt.id)
     db.commit()
     return meeting_state(db, mt, at)

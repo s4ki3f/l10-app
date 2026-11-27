@@ -47,6 +47,7 @@ KEEP_ON_RERUN = {
     Issue: {"solved_at", "resolution_note", "updated_at"},
     Todo: {"updated_at"},
     Score: {"updated_at", "updated_by"},
+    MeetingRating: {"updated_at"},
 }
 
 
@@ -102,7 +103,8 @@ def rows_from_seed(seed: dict) -> list[tuple[type, list[dict]]]:
         ]),
         (MeetingAttendee, [{"meeting_id": m["id"], "user_id": u} for m in seed["meetings"] for u in m["attendee_ids"]]),
         (MeetingRating, [
-            {"meeting_id": m["id"], "user_id": r["user_id"], "rating": r["rating"]} for m in seed["meetings"] for r in m["ratings"]
+            {"meeting_id": m["id"], "user_id": r["user_id"], "rating": r["rating"], "updated_at": None}
+            for m in seed["meetings"] for r in m["ratings"]
         ]),
     ]
 

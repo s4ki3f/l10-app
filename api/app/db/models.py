@@ -244,3 +244,4 @@ class MeetingRating(Base):
     meeting_id: Mapped[str] = mapped_column(Id)
     user_id: Mapped[str] = mapped_column(Id)
     rating: Mapped[int] = mapped_column(Integer)
+    updated_at: Mapped[datetime | None] = mapped_column(Ts)  # last app write (null for seed ratings)

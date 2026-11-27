@@ -79,6 +79,7 @@ def last_app_write(session: Session):
         select(func.max(func.greatest(m.Meeting.started_at, m.Meeting.section_started_at, m.Meeting.ended_at)))
         .where(m.Meeting.id.like(literal_column("'mt\\_%'"))),
         select(func.max(m.MeetingAttendee.joined_at)),
+        select(func.max(m.MeetingRating.updated_at)),
     ]
     found = [session.scalar(q) for q in candidates]
     return max((f for f in found if f is not None), default=None)

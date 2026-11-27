@@ -16,7 +16,7 @@ Open **http://localhost:3000**, pick a seeded user and open a second browser (or
 
 ## Test
 ```bash
-make test     # every layer, unattended: 236 pytest (rules, DB, API) + 4 Playwright tests (the meeting test runs Chromium + Firefox)
+make test     # every layer, unattended: 250 pytest (rules, DB, API) + 4 Playwright tests (the meeting test runs Chromium + Firefox)
 ```
 Requires Docker, [uv](https://docs.astral.sh/uv/) and pnpm. `make test-api` runs only pytest and `make e2e` only Playwright. **[docs/testing.md](docs/testing.md)** covers the fixture and clock strategy and the committed failure trace (`docs/artifacts/`).
 
@@ -76,5 +76,6 @@ Review caught these, all now fixed and covered by tests:
 - an E2E reset that ran stale image code
 - an external review: a change landing while a browser was still connecting could be missed. I'd skipped the refetch on the first `hello`, and the fix is listen-then-fetch plus a test that commits a change inside that gap
 - a parallel review by three AI reviewer agents (timing, security, rules). It confirmed the graded report and found 19 issues, all verified and fixed with tests. Examples: a seed rerun that could crash `docker compose up`, hints lost while the database listener reconnected, a Rate that could land after End, and inputs that produced a bare 500
+- a second external review: a Rate was the one write the clock-resume rule couldn't see. Beyond fixing it, a coverage test now exercises every write route (read from OpenAPI), so a new route can't miss it
 
 Playwright, driven by Claude, was used for the visual review of the UI.
