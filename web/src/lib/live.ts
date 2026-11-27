@@ -8,9 +8,12 @@ const POLL_WHILE_DOWN_MS = 5_000;
 
 /**
  * One EventSource per team page. The server sends hints ({topic}); we mark those queries stale and
- * TanStack Query refetches through the normal, permission-checked API. Every (re)connect starts with
- * "hello", and we refetch the whole team then — that is how refreshes, late joins and dropped
- * connections all recover the current state.
+ * TanStack Query refetches through the normal, permission-checked API.
+ *
+ * Listen, then fetch: the server sends "hello" only after this browser is subscribed (and its LISTEN
+ * connection is up), so refetching on EVERY hello — the first one included — picks up anything that
+ * changed before the subscription existed. Skipping the first one lost changes that landed between the
+ * page's initial fetch and the subscription (found by an external review).
  */
 export function useTeamEvents(teamId: string): LiveStatus {
   const qc = useQueryClient();
@@ -18,11 +21,9 @@ export function useTeamEvents(teamId: string): LiveStatus {
 
   useEffect(() => {
     const es = new EventSource(`/api/teams/${encodeURIComponent(teamId)}/events`);
-    let seenHello = false;
     es.addEventListener("hello", () => {
       setStatus("live");
-      if (seenHello) qc.invalidateQueries({ queryKey: keys.team(teamId) });
-      seenHello = true;
+      qc.invalidateQueries({ queryKey: keys.team(teamId) });
     });
     es.addEventListener("change", (ev) => {
       const { topic } = JSON.parse((ev as MessageEvent).data) as { topic: string };

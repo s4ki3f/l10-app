@@ -7,6 +7,7 @@ On (re)connect the browser refetches everything, so late joins, refreshes and re
 import asyncio
 import inspect
 import json
+import logging
 
 from fastapi import APIRouter, Cookie, Request
 from fastapi.responses import StreamingResponse
@@ -15,7 +16,9 @@ from ...realtime import broker
 from ..deps import SESSION_COOKIE, current_user, get_db, team_reader
 
 router = APIRouter(tags=["realtime"])
+log = logging.getLogger("l10.realtime")
 HEARTBEAT_SECONDS = 15
+LISTEN_READY_SECONDS = 5
 
 
 def _authorize(request: Request, team_id: str, token: str | None) -> None:
@@ -43,6 +46,10 @@ def _sse(event: str, data: dict) -> str:
 async def team_events(request: Request, team_id: str, token: str | None = Cookie(default=None, alias=SESSION_COOKIE)):
     await asyncio.to_thread(_authorize, request, team_id, token)
     sub = broker.subscribe(team_id)
+    # "hello" promises the client it won't miss anything from now on, so it must come after we are
+    # subscribed AND this process's LISTEN connection is up (on a fresh process it starts lazily).
+    if not await asyncio.to_thread(broker.ready.wait, LISTEN_READY_SECONDS):
+        log.warning("LISTEN not ready after %ss; hints may be delayed until it reconnects", LISTEN_READY_SECONDS)
 
     async def stream():
         try:

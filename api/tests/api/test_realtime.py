@@ -156,3 +156,20 @@ def test_outsider_cannot_open_a_stream(server):
 def test_anonymous_cannot_open_a_stream(server):
     with httpx.Client(base_url=server) as c:
         assert c.get("/teams/team_lead/events").status_code == 401
+
+
+def test_hello_waits_until_the_listen_connection_is_up(server, monkeypatch):
+    """On a fresh process LISTEN starts lazily; 'hello' must not promise delivery before it's up."""
+    import threading as th
+
+    not_ready = th.Event()
+    monkeypatch.setattr(broker, "ready", not_ready)
+    th.Timer(0.8, not_ready.set).start()  # LISTEN "comes up" 0.8 s after the browser connects
+    t0 = time.monotonic()
+    stream = Stream(signed_in(server, "u2"), "team_lead")
+    try:
+        event, _ = stream.next(timeout=3)
+        assert event == "hello"
+        assert time.monotonic() - t0 >= 0.75, "hello was sent before LISTEN was ready"
+    finally:
+        stream.close()

@@ -6,8 +6,8 @@ One command, unattended: **`make test`** (needs Docker, `uv`, `pnpm`). It runs e
 |---|---|---|---|
 | Rule tests | `api/tests/rules` | every rule in 2.6 with its boundary cases, one named test per seed trap; the full rules report == a hand-worked answer key; also at a summer date and "as of" Nov 1 | 47 |
 | DB tests | `api/tests/db` | Postgres itself rejects invalid rows (ranges, Monday weeks, solved ⇔ note, one open Issue per cell, one live meeting per team, owners are real users, only attendees rate); seed and reset are idempotent | 22 |
-| API tests | `api/tests/api` | 401 / 404 (other team) / 403 (observer write) on every team-scoped route, walked from OpenAPI; concurrent Make it an Issue → one Issue; concurrent Starts → one meeting; meeting rules and timer; a live uvicorn SSE test (change reaches another user's stream < 1 s, other teams never hear it); owners (any Admin, or a Team Member of the team); Team page values vs the answer key | 142 |
-| End-to-end | `web/e2e` | two browsers: the facilitator advances Scorecard → IDS → Conclude and the follower follows within 2 s, both rate, end → follower sees the summary; refresh mid-meeting recovers section + timer; observer is read-only | 3 |
+| API tests | `api/tests/api` | 401 / 404 (other team) / 403 (observer write) on every team-scoped route, walked from OpenAPI; concurrent Make it an Issue → one Issue; concurrent Starts → one meeting; meeting rules and timer; a live uvicorn SSE test (change reaches another user's stream < 1 s, other teams never hear it); owners (any Admin, or a Team Member of the team); Team page values vs the answer key; `hello` waits for LISTEN | 143 |
+| End-to-end | `web/e2e` | two browsers: the facilitator advances Scorecard → IDS → Conclude and the follower follows within 2 s, both rate, end → follower sees the summary; refresh mid-meeting recovers section + timer; observer is read-only; a change committed while a browser is still connecting still reaches it | 4 |
 
 ## Fixture strategy
 
@@ -26,6 +26,8 @@ One command, unattended: **`make test`** (needs Docker, `uv`, `pnpm`). It runs e
 ## Proving the tests can fail
 
 Each safeguard was removed once in a scratch copy and the suite rerun; every removal failed at least one test (details per problem in the decision record). Two gaps were found this way and closed: an untested quarter filter on Rocks, and a 404 that leaked whether a record existed in another team.
+
+The method has a blind spot: it removes safeguards that exist, so it can't reveal one that was never written. An external review found such a case (a change landing between a browser's first fetch and its subscription). It now has a test that deliberately acts inside that gap, and I watched that test fail on the old code before fixing it.
 
 ## Failure artifact
 

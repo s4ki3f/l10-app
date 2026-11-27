@@ -87,3 +87,26 @@ test("an observer follows read-only", async ({ browser }) => {
   await expect(observer.getByRole("button", { name: "Solve" })).toHaveCount(0);
   await expect(observer.getByTestId("cell-m1-2026-11-02")).toHaveAttribute("data-status", "off_track");
 });
+
+test("a change made while the browser is still connecting is not lost (listen, then fetch)", async ({ browser, playwright }) => {
+  // Hold the follower's live stream back so its initial fetch finishes first, then commit a change
+  // inside that gap. The browser must still show it once the stream says hello.
+  const ctx = await browser.newContext();
+  await ctx.route("**/api/teams/*/events", async (route) => {
+    await new Promise((r) => setTimeout(r, 2_500));
+    await route.continue();
+  });
+  const follower = await ctx.newPage();
+  await follower.goto("/login");
+  await follower.getByTestId("signin-u2").click();
+  await expect(follower.getByTestId("issues-open")).toBeVisible(); // initial fetch done, stream not yet open
+  await expect(follower.getByTestId("live-status")).not.toHaveAttribute("data-status", "live");
+
+  const title = `Raised while you were connecting ${Date.now()}`;
+  const casey = await playwright.request.newContext({ baseURL: test.info().project.use.baseURL });
+  expect((await casey.post("/api/auth/login", { data: { user_id: "u3" } })).ok()).toBeTruthy();
+  expect((await casey.post("/api/teams/team_lead/issues", { data: { title } })).status()).toBe(201);
+
+  await expect(follower.getByTestId("live-status")).toHaveAttribute("data-status", "live", { timeout: 6_000 });
+  await expect(follower.getByText(title)).toBeVisible({ timeout: 2_000 }); // no other change will arrive to rescue it
+});

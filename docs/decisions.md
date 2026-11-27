@@ -25,7 +25,7 @@
   - One `LISTEN` connection per process fans hints out per team.
   - Browsers refetch through the guarded API, so a missed hint costs nothing.
 - **Timer.** It's a start time plus `server_now`; the client corrects its own clock offset. An overrun shows "over time" and never advances.
-- **Recovery.** Late join, refresh and reconnect share one path: fetch state, then listen. Control is tied to the user.
+- **Recovery.** Late join, refresh and reconnect share one path, and the order matters: **listen, then fetch**. The server sends `hello` only after the browser is subscribed and LISTEN is up, and the browser refetches on every `hello`, so nothing that happened before the subscription is lost. Control is tied to the user.
 - **Stale clicks.** Advance names its `from_section`, so a stale double-click gets 409.
 - **Rejected.** WebSockets (traffic down is one-way, while SSE reconnects by itself over HTTP); server memory (lost on restart); Redis (an extra service Postgres already covers here).
 - **Cost.** One connection per open tab. The stream releases its DB session after authorizing, so tabs don't hold pool slots.

@@ -16,7 +16,7 @@ Open **http://localhost:3000**, pick a seeded user and open a second browser (or
 
 ## Test
 ```bash
-make test     # every layer, unattended: 211 pytest (rules, DB, API) + 3 Playwright two-browser tests
+make test     # every layer, unattended: 212 pytest (rules, DB, API) + 4 Playwright two-browser tests
 ```
 Requires Docker, [uv](https://docs.astral.sh/uv/) and pnpm. `make test-api` runs only pytest and `make e2e` only Playwright. **[docs/testing.md](docs/testing.md)** covers the fixture and clock strategy and the committed failure trace (`docs/artifacts/`).
 
@@ -75,5 +75,6 @@ Review caught these, all now fixed and covered by tests:
 - a 404 whose message leaked that a record existed
 - an untested quarter filter
 - an E2E reset that ran stale image code
+- an external review: a change landing while a browser was still connecting could be missed. I'd skipped the refetch on the first `hello`, and the fix is listen-then-fetch plus a test that commits a change inside that gap
 
 Playwright, driven by Claude, was used for the visual review of the UI.
