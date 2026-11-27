@@ -14,6 +14,7 @@ One command, unattended: **`make test`** (needs Docker, `uv`, `pnpm`). It runs e
 - **pytest** uses its own database, `l10_test`, rebuilt at the start of every run: drop schema → `alembic upgrade head` → load `seed.json`. The fixture refuses any database whose name doesn't end in `_test`.
 - Each test runs inside a transaction that is rolled back (API calls commit to savepoints inside it), so tests can't see each other's writes.
 - Tests that need real concurrency (Make it an Issue race, simultaneous Starts, live SSE) use separate connections that really commit, then delete what they created.
+- Interleaving tests (a Rate racing an End, a solve racing a priority change or a second solve) don't sleep and hope: they hold the competing transaction open and ask Postgres (`pg_blocking_pids`) until the request under test is actually queued behind it, then commit. If it never queues, the test fails with "the race was not exercised" instead of passing for the wrong reason.
 - **Playwright** runs against the real compose stack. `make e2e` first runs `seed --reset`, which deletes everything the app created and restores the seed, so every run starts from the same data.
 
 ## Clock strategy

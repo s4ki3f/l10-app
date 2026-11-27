@@ -12,6 +12,8 @@ from app.db import models as m
 from app.main import app
 from app.rules.clock import FrozenClock
 
+from tests.conftest import wait_until_blocked_by
+
 from .conftest import NOW
 
 
@@ -245,11 +247,11 @@ def test_rate_racing_end_never_lands_after_it(real_db):
         result = {}
         with real_db.connect() as end_tx:  # plays the facilitator's End, mid-transaction
             tx = end_tx.begin()
+            end_pid = end_tx.execute(text("SELECT pg_backend_pid()")).scalar()
             end_tx.execute(text("SELECT 1 FROM meetings WHERE id = :id FOR UPDATE"), {"id": mt})
             t = threading.Thread(target=lambda: result.update(r=c.put(f"/meetings/{mt}/rating", json={"rating": 9})))
             t.start()
-            t.join(0.5)
-            assert t.is_alive(), "Rate didn't wait for the End holding the meeting row"
+            wait_until_blocked_by(real_db, end_pid)  # Rate is queued behind the End (asked of Postgres, not a sleep)
             end_tx.execute(text("UPDATE meetings SET ended_at = started_at + interval '1 minute' WHERE id = :id"), {"id": mt})
             tx.commit()
         t.join(10)

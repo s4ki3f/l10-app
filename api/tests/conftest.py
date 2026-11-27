@@ -9,6 +9,7 @@
 """
 import json
 import os
+import time
 from pathlib import Path
 
 import pytest
@@ -64,3 +65,20 @@ def db(engine):
 def committed_engine(engine):
     """For tests that need real, separately committed connections. Clean up what you create."""
     return engine
+
+
+def wait_until_blocked_by(engine, blocker_pid: int, timeout: float = 5.0) -> None:
+    """Block until some backend is waiting on a lock held by `blocker_pid` (asked of Postgres, not a sleep).
+
+    Race tests use it to prove the request under test really reached its write and is queued behind the
+    competing transaction — so the interleaving they claim to test is the one that happened. Fails loudly if not.
+    """
+    deadline = time.monotonic() + timeout
+    with engine.connect() as probe:
+        while time.monotonic() < deadline:
+            waiting = probe.execute(text(
+                "SELECT count(*) FROM pg_stat_activity WHERE :pid = ANY(pg_blocking_pids(pid))"), {"pid": blocker_pid}).scalar()
+            if waiting:
+                return
+            time.sleep(0.02)
+    raise AssertionError(f"no request ever waited on transaction {blocker_pid}: the race was not exercised")

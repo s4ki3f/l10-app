@@ -14,6 +14,8 @@ from app.api.deps import get_db
 from app.main import app
 from app.rules.clock import FrozenClock
 
+from tests.conftest import wait_until_blocked_by
+
 from .conftest import NOW
 
 SCORE = "/measurables/{m}/weeks/{w}/score"
@@ -129,12 +131,14 @@ def _interleave(real_db, request, user="u2"):
         c.post("/auth/login", json={"user_id": user})
         with real_db.connect() as solver:
             tx = solver.begin()
+            solver_pid = solver.execute(text("SELECT pg_backend_pid()")).scalar()
             # solved at the app's "now" (the API runs on a frozen clock), not Postgres' wall clock
             solver.execute(text("UPDATE issues SET solved_at = '2026-11-11T14:59:00Z', resolution_note = 'solved first', "
                                 "version = version + 1 WHERE id = 'i3'"))  # holds i3's row lock, not committed
             t = threading.Thread(target=lambda: result.update(r=request(c)))
             t.start()
-            t.join(0.6)  # the request has read i3 as unsolved and is now blocked on the row
+            # Proof, not a sleep: the request has read i3 as unsolved and its UPDATE is now queued behind us.
+            wait_until_blocked_by(real_db, solver_pid)
             tx.commit()
         t.join(10)
     return result["r"]
