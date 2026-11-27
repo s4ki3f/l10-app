@@ -8,14 +8,17 @@ Cells used (seed, APP_NOW = 2026-11-11):
 - m1 / Nov 9:  current week, no score → pending                 → 409
 """
 import threading
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import sessionmaker
 
+from app.api import raise_issue
 from app.api.deps import get_db
+from app.api.raise_issue import cell_lock_key
+from app.api.routes import scorecard
 from app.db import models as m
 from app.main import app
 from app.rules.clock import FrozenClock
@@ -146,3 +149,56 @@ def test_concurrent_requests_return_one_issue(real_sessions, cell):
             "SELECT count(*) FROM issues WHERE source_measurable_id = :m AND source_week = :w AND solved_at IS NULL"
         ), {"m": measurable, "w": week}).scalar()
     assert count == 1
+
+
+# ---------- the index is the guarantee; the cell lock only queues ----------
+
+CELL_IS_FREE = text("SELECT pg_try_advisory_xact_lock(hashtextextended(:k, 0))")
+
+
+def _cell_is_free(engine, measurable: str, week: str) -> bool:
+    """Could another writer take this cell's lock right now? (Asked from a separate connection.)"""
+    with engine.connect() as other:
+        free = other.execute(CELL_IS_FREE, {"k": cell_lock_key(measurable, date.fromisoformat(week))}).scalar()
+        other.rollback()
+    return free
+
+
+def test_an_issue_this_click_cant_see_yet_still_blocks_a_duplicate(real_sessions, monkeypatch):
+    """The cell lock queues clicks, so most races end at the "already open" check. But a click whose clock read
+    earlier than a concurrent winner's can't see the winner's Issue (as of its now it doesn't exist yet): only the
+    unique index stops a duplicate. The cell stays locked from that conflict until the winner is returned."""
+    with real_sessions.begin() as conn:
+        conn.execute(text(
+            "INSERT INTO issues (id, team_id, title, owner_id, created_at, source_measurable_id, source_week) "
+            "VALUES ('i_unseen', 'team_lead', 'Avg first response, week of Nov 2', 'u4', :t, 'm3', '2026-11-02')"),
+            {"t": NOW + timedelta(seconds=5)})
+    held, original = [], raise_issue._index_holder
+
+    def index_holder(db, src):
+        held.append(not _cell_is_free(real_sessions, "m3", "2026-11-02"))
+        return original(db, src)
+
+    monkeypatch.setattr(raise_issue, "_index_holder", index_holder)
+    with TestClient(app) as c:
+        c.post("/auth/login", json={"user_id": "u3"})
+        r = c.post(URL.format(m="m3", w="2026-11-02"))
+    assert (r.status_code, r.json()["id"], held) == (200, "i_unseen", [True])
+    with real_sessions.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM issues WHERE source_measurable_id = 'm3' "
+                                 "AND source_week = '2026-11-02' AND solved_at IS NULL")).scalar() == 1
+
+
+def test_a_repeat_click_frees_the_cell_before_its_response_is_built(real_sessions, monkeypatch):
+    """Returning the cell's existing Issue writes nothing, so score saves on that cell mustn't wait for it."""
+    free, original = [], scorecard.issues_out
+
+    def issues_out(db, rows):
+        free.append(_cell_is_free(real_sessions, "m1", "2026-11-02"))
+        return original(db, rows)
+
+    monkeypatch.setattr(scorecard, "issues_out", issues_out)
+    with TestClient(app) as c:
+        c.post("/auth/login", json={"user_id": "u2"})
+        assert c.post(URL.format(m="m1", w="2026-11-02")).status_code == 200  # i5 is already open
+    assert free == [True]

@@ -1,12 +1,12 @@
 """Load seed.json into Postgres. Safe to rerun.
 
-`--reset` first deletes everything the app created (rows whose ids are not in the seed, and score cells
-the seed doesn't have), so the database is exactly the seed again. The E2E tests start from it.
+A plain run (every `docker compose up`) only adds seed rows that are missing (INSERT … ON CONFLICT DO NOTHING):
+it never changes a row that exists, so what people changed in the app — and the audit trail describing it —
+still holds. Running it twice changes nothing.
 
-Every seed row is an upsert keyed by its seed id (INSERT … ON CONFLICT DO UPDATE), so:
-- running it twice changes nothing;
-- running it after edits restores the seed's version of seed records;
-- rows created in the app (generated ids) are left alone.
+`--reset` first deletes everything the app created (rows whose ids are not in the seed, score cells the seed
+doesn't have, and the audit trail), then restores the seed's values (ON CONFLICT DO UPDATE), so the database is
+exactly the seed again. The E2E tests start from it.
 
     python -m app.db.seed [--reset] [path/to/seed.json]
 """
@@ -41,24 +41,15 @@ def _n(value):
     return None if value is None else Decimal(str(value))
 
 
-# On a plain rerun, an Issue's solved state belongs to the app: reopening a seeded Issue the team has since
-# solved could collide with a newer open Issue on the same cell (one unsolved Issue per cell). --reset restores it.
-KEEP_ON_RERUN = {
-    Issue: {"solved_at", "resolution_note", "updated_at", "version"},
-    Todo: {"updated_at"},
-    Score: {"updated_at", "updated_by", "version"},
-    MeetingRating: {"updated_at"},
-}
-
-
-def _upsert(conn: Connection, model, rows: list[dict], keep: set[str] = frozenset()) -> None:
+def _insert(conn: Connection, model, rows: list[dict], *, restore: bool) -> None:
+    """Add missing seed rows; `restore` (--reset only) also puts the seed's values back on rows that exist."""
     if not rows:
         return
     table = model.__table__
     keys = [c.name for c in table.primary_key.columns]
     stmt = insert(table).values(rows)
-    updates = {c: stmt.excluded[c] for c in rows[0] if c not in keys and c not in keep}
-    stmt = stmt.on_conflict_do_update(index_elements=keys, set_=updates) if updates else stmt.on_conflict_do_nothing()
+    updates = {c: stmt.excluded[c] for c in rows[0] if c not in keys}
+    stmt = stmt.on_conflict_do_update(index_elements=keys, set_=updates) if restore and updates else stmt.on_conflict_do_nothing()
     conn.execute(stmt)
 
 
@@ -111,9 +102,9 @@ def rows_from_seed(seed: dict) -> list[tuple[type, list[dict]]]:
 
 
 def load_seed(conn: Connection, seed: dict, *, exact: bool = False) -> None:
-    """Upsert every seed row. `exact` (used by --reset) also restores fields the app owns on a rerun."""
+    """Add every missing seed row. `exact` (used by --reset, after it deletes the app's rows) restores seed values."""
     for model, rows in rows_from_seed(seed):
-        _upsert(conn, model, rows, keep=set() if exact else KEEP_ON_RERUN.get(model, set()))
+        _insert(conn, model, rows, restore=exact)
 
 
 def reset_to_seed(conn: Connection, seed: dict) -> None:

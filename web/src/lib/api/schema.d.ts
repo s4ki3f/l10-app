@@ -567,7 +567,7 @@ export interface components {
             type: "issue" | "todo" | "score" | "meeting";
             /**
              * Id
-             * @description A score's id is "<measurable>:<week>"
+             * @description An Issue, To-Do or meeting id; a score cell is "<measurable id>:<week's Monday>"
              */
             id: string;
             /**
@@ -588,16 +588,19 @@ export interface components {
             actor: components["schemas"]["PersonRef"];
             /**
              * Action
-             * @description e.g. issue.created, issue.raised, issue.priority_changed, issue.solved, todo.created, todo.done, todo.undone, score.set, meeting.started, meeting.joined, meeting.advanced, meeting.rated, meeting.ended
+             * @enum {string}
              */
-            action: string;
+            action: "issue.created" | "issue.raised" | "issue.priority_changed" | "issue.solved" | "todo.created" | "todo.done" | "todo.undone" | "score.set" | "meeting.started" | "meeting.joined" | "meeting.advanced" | "meeting.rated" | "meeting.ended";
             entity: components["schemas"]["AuditEntity"];
             /**
              * Changes
-             * @description field → [before, after]; on create, the values set
+             * @description field → [before, after], before as of now. On a creation before is null and empty fields are left out; a related record is {id, name} or {id, title} as it was at the time
              */
             changes: {
-                [key: string]: unknown;
+                [key: string]: [
+                    unknown,
+                    unknown
+                ];
             };
         };
         /** AuditPage */
@@ -2829,7 +2832,9 @@ export interface operations {
                 limit?: number;
                 /** @description Only events older than this id (from next_before) */
                 before?: number | null;
+                /** @description Only events about this kind of record */
                 entity_type?: ("issue" | "todo" | "score" | "meeting") | null;
+                /** @description One record's history: an Issue, To-Do or meeting id, or a score cell as <measurable id>:<YYYY-MM-DD> */
                 entity_id?: string | null;
             };
             header?: never;

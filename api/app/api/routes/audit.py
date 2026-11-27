@@ -17,8 +17,9 @@ def team_audit(
     db: Session = Depends(get_db),
     limit: int = Query(50, ge=1, le=200),
     before: int | None = Query(None, ge=1, description="Only events older than this id (from next_before)"),
-    entity_type: AuditEntityType | None = Query(None),
-    entity_id: str | None = Query(None, pattern=r"^[A-Za-z0-9_:-]{1,96}$"),
+    entity_type: AuditEntityType | None = Query(None, description="Only events about this kind of record"),
+    entity_id: str | None = Query(None, pattern=r"^[A-Za-z0-9_:-]{1,96}$", description=(
+        "One record's history: an Issue, To-Do or meeting id, or a score cell as <measurable id>:<YYYY-MM-DD>")),
 ):
     q = select(m.AuditEvent).where(m.AuditEvent.team_id == team.id)  # never another team's events
     if before is not None:

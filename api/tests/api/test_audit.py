@@ -100,6 +100,30 @@ class TestBeforeAndAfter:
             "todo.done", None, "todo.undone", None)
 
 
+    def test_creations_record_what_was_set_with_names_as_they_were(self, as_user, session):
+        c = as_user("u3")
+        issue = c.post("/teams/team_lead/issues", json={"title": "Vendor SLA", "priority": 2}).json()["id"]
+        c.post(f"/issues/{issue}/todos", json={"title": "Call vendor", "owner_id": "u4"})
+        c.post(f"/issues/{issue}/solve", json={"note": "new SLA signed"})
+        assert {e.action: e.changes for e in events(session)} == {
+            "issue.created": {"title": [None, "Vendor SLA"], "priority": [None, 2]},
+            "todo.created": {"title": [None, "Call vendor"], "owner": [None, {"id": "u4", "name": "Dana Diaz"}],
+                             "due_date": [None, "2026-11-18"], "source_issue": [None, {"id": issue, "title": "Vendor SLA"}]},
+            "issue.solved": {"resolution_note": [None, "new SLA signed"]},
+        }
+
+    def test_a_raised_issue_records_its_source(self, as_user, session):
+        as_user("u3").post("/measurables/m3/weeks/2026-11-02/issue")
+        (e,) = events(session, action="issue.raised")
+        assert e.changes == {"title": [None, "Avg first response, week of Nov 2"],
+                             "source_measurable_id": [None, "m3"], "source_week": [None, "2026-11-02"]}
+
+    def test_a_meeting_is_named_by_its_start(self, as_user, session):
+        as_user("u3").post("/teams/team_lead/meetings")
+        (e,) = events(session, action="meeting.started")
+        assert e.entity_label == "Level 10 Meeting, Nov 11, 9:00 AM"  # two meetings on one day stay apart
+
+
 class TestNothingRecordedWhenNothingChanged:
     def test_refused_and_no_op_requests(self, as_user, session):
         assert as_user("u2").post("/measurables/m1/weeks/2026-11-02/issue").status_code == 200  # i5 already open
@@ -109,6 +133,35 @@ class TestNothingRecordedWhenNothingChanged:
         assert as_user("u5").post("/teams/team_lead/issues", json={"title": "observer"}).status_code == 403
         assert as_user("u6").patch("/issues/i3", json={"priority": 1}).status_code == 404
         assert events(session) == []
+
+    def test_the_same_value_again_writes_nothing(self, as_user, session):
+        """200 with what's there, but no write: no version bump, no event (so nobody else gets a stale 409)."""
+        from .writes import live_meeting
+
+        c = as_user("u3")
+        t21_done_at = session.get(m.Todo, "t21").done_at
+        assert c.patch("/issues/i3", json={"priority": 3}).json()["version"] == 1  # i3 is priority 3
+        assert c.put("/measurables/m2/weeks/2026-11-02/score", json={"value": 3.0}).json()["version"] == 1  # it's 3.0
+        assert c.post("/todos/t21/done").json()["done_at"] is not None  # already done: its done time stays
+        assert c.post("/todos/t31/undo").json()["done_at"] is None  # not done: nothing to undo
+        mt = live_meeting(c, "conclude")
+        c.put(f"/meetings/{mt}/rating", json={"rating": 6})
+        c.put(f"/meetings/{mt}/rating", json={"rating": 6})
+        session.expire_all()
+        assert session.get(m.Todo, "t21").done_at == t21_done_at
+        assert [e.action for e in events(session) if e.entity_type != "meeting"] == []
+        assert len(events(session, action="meeting.rated")) == 1
+        # a stale version is still a conflict, even for the same value (lost-update protection decides first)
+        assert c.patch("/issues/i3", json={"priority": 3, "expected_version": 0}).status_code == 409
+        assert c.put("/measurables/m2/weeks/2026-11-02/score", json={"value": 3.0, "expected_version": 0}).status_code == 409
+
+    def test_a_done_time_after_now_reads_as_not_done(self, as_user, session):
+        """'Before' is as of now: a done time the seed dates after now hasn't happened, so the trail doesn't reveal it."""
+        session.execute(text("UPDATE todos SET done_at = '2026-11-12T15:00:00Z' WHERE id = 't31'"))  # tomorrow
+        c = as_user("u3")
+        assert c.post("/todos/t31/undo").json()["done_at"] is None  # not done as of now: nothing to undo
+        c.post("/todos/t31/done")
+        assert [e.changes["done_at"][0] for e in events(session, entity_id="t31")] == [None]
 
     def test_joining_twice_is_one_event(self, as_user, session):
         from .writes import live_meeting
@@ -128,16 +181,20 @@ class TestReadingTheTrail:
         first = c.get("/teams/team_lead/audit?limit=2").json()
         assert [e["entity"]["label"] for e in first["items"]] == ["audit 2", "audit 1"]
         rest = c.get(f"/teams/team_lead/audit?limit=2&before={first['next_before']}").json()
-        assert [e["entity"]["label"] for e in rest["items"]] == ["audit 0"] and rest["next_before"] is None
+        assert rest["items"][0]["entity"]["label"] == "audit 0"  # older events may follow (other tests commit some)
         assert first["items"][0]["actor"] == {"id": "u2", "name": "Blake Brooks"}
 
-    def test_one_records_history(self, as_user):
+    def test_one_records_history_page_by_page(self, as_user):
         c = as_user("u3")
-        c.patch("/issues/i3", json={"priority": 1})
-        c.post("/issues/i3/solve", json={"note": "weekend rota agreed"})
+        issue = c.post("/teams/team_lead/issues", json={"title": "history"}).json()["id"]  # new: no events elsewhere
+        c.patch(f"/issues/{issue}", json={"priority": 1})
+        c.post(f"/issues/{issue}/solve", json={"note": "weekend rota agreed"})
         c.post("/teams/team_lead/issues", json={"title": "unrelated"})
-        h = c.get("/teams/team_lead/audit?entity_type=issue&entity_id=i3").json()["items"]
-        assert [e["action"] for e in h] == ["issue.solved", "issue.priority_changed"]
+        url = f"/teams/team_lead/audit?entity_type=issue&entity_id={issue}&limit=2"
+        first = c.get(url).json()
+        last = c.get(f"{url}&before={first['next_before']}").json()
+        assert [e["action"] for e in first["items"] + last["items"]] == ["issue.solved", "issue.priority_changed", "issue.created"]
+        assert last["next_before"] is None
 
     def test_teams_never_see_each_others_events(self, as_user):
         as_user("u6").post("/teams/team_sales/issues", json={"title": "sales only"})
@@ -203,7 +260,7 @@ def test_twelve_concurrent_clicks_record_one_event(real_db, url, source_key, sou
     with real_db.connect() as conn:
         raised = conn.execute(text(
             "SELECT entity_id FROM audit_events WHERE id > :floor AND action = 'issue.raised' "
-            "AND changes -> 'source' ->> :key = :id"), {"floor": floor, "key": source_key, "id": source_id}).scalars().all()
+            "AND changes -> :key ->> 1 = :id"), {"floor": floor, "key": source_key, "id": source_id}).scalars().all()
     assert raised == [issue_id]
 
 

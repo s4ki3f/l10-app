@@ -1,10 +1,12 @@
 """Request and response models. Inputs are validated here, at the edge; the DB constraints back them up."""
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import Path
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+
+from ..db.models import AUDIT_ACTIONS, AUDIT_ENTITIES
 
 # Ids are seed ids (u1, m1, t12) or generated (i_3f…): letters, digits, "_" and "-". Rejecting anything else at
 # the edge keeps odd bytes (e.g. NUL, which the database driver refuses) from ever reaching a query.
@@ -291,12 +293,13 @@ class RockOut(BaseModel):
 
 # ---------- audit trail (bonus) ----------
 
-AuditEntityType = Literal["issue", "todo", "score", "meeting"]
+AuditEntityType = Literal[AUDIT_ENTITIES]  # type: ignore[valid-type]  — one list, in models (the DB CHECKs use it)
+AuditAction = Literal[AUDIT_ACTIONS]  # type: ignore[valid-type]
 
 
 class AuditEntity(BaseModel):
     type: AuditEntityType
-    id: str = Field(description="A score's id is \"<measurable>:<week>\"")
+    id: str = Field(description="An Issue, To-Do or meeting id; a score cell is \"<measurable id>:<week's Monday>\"")
     label: str = Field(description="Its name at the time of the change")
 
 
@@ -304,11 +307,11 @@ class AuditEventOut(BaseModel):
     id: int
     at: datetime
     actor: PersonRef
-    action: str = Field(description="e.g. issue.created, issue.raised, issue.priority_changed, issue.solved, "
-                                    "todo.created, todo.done, todo.undone, score.set, meeting.started, "
-                                    "meeting.joined, meeting.advanced, meeting.rated, meeting.ended")
+    action: AuditAction
     entity: AuditEntity
-    changes: dict = Field(description="field → [before, after]; on create, the values set")
+    changes: dict[str, tuple[Any, Any]] = Field(description=(
+        "field → [before, after], before as of now. On a creation before is null and empty fields are left out; "
+        "a related record is {id, name} or {id, title} as it was at the time"))
 
 
 class AuditPage(BaseModel):

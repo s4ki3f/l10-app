@@ -16,7 +16,7 @@ Open **http://localhost:3000**, pick a seeded user, and open a second browser (o
 
 ## Test
 ```bash
-make test     # every layer, unattended: 337 pytest (rules, DB, API) + 8 Playwright tests, run in Chromium and in Firefox
+make test     # every layer, unattended: 344 pytest (rules, DB, API) + 8 Playwright tests, run in Chromium and in Firefox
 ```
 Requires Docker, [uv](https://docs.astral.sh/uv/) and pnpm (`make test-api` / `make e2e` run one layer). **[docs/testing.md](docs/testing.md)**: fixture and clock strategy, and the committed failure trace in `docs/artifacts/`.
 
@@ -47,7 +47,7 @@ It reseeds a fresh database and prints the JSON for `APP_NOW`; the default-date 
 ## Known limitations
 - Summaries are computed on read, not frozen (see decision 5).
 - Scores and milestone completion carry no timestamps, so "as of now" can't hide them at earlier dates.
-- The audit trail's append-only rule is a trigger; in production the app's database role would also get INSERT/SELECT only on `audit_events`.
+- Audit trail: append-only is a trigger (production would also limit the app's role to INSERT/SELECT on it); event ids share one sequence, so their gaps hint at how busy other teams are.
 - Security: no CSRF token (SameSite=Lax cookie, JSON-only bodies). Sessions are stateless and expire after 12 h, so logout can't revoke a copied cookie. Set `SESSION_SECRET` and `COOKIE_SECURE=1` outside local development.
 - No facilitator handoff, and no dark-mode toggle.
 

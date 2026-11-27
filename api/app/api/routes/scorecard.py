@@ -133,9 +133,13 @@ def put_score(
     week = cell_week(week, at)
     before = lock_cell(db, measurable.id, week)  # writers of this cell queue here, so `before` is exact
     old = None if before is None else before.value
+    ev = body.expected_version
+    if before is not None and body.value == old and ev in (None, before.version):
+        version = before.version  # the same value again: no write, no version bump, no event, no hint
+        db.rollback()
+        return _cell_out(db, measurable, week, version, body.value, at)
     fields = {"value": body.value, "updated_at": at, "updated_by": user.id}
     cell = (m.Score.measurable_id == measurable.id) & (m.Score.week_start == week)
-    ev = body.expected_version
     if ev is None:  # last save wins (the brief's core behaviour)
         version = db.execute(insert(m.Score).values(measurable_id=measurable.id, week_start=week, **fields)
                              .on_conflict_do_update(index_elements=["measurable_id", "week_start"],
@@ -155,7 +159,11 @@ def put_score(
            changes={"value": [old, body.value]})
     publish(db, measurable.team_id, "scorecard")
     db.commit()
+    return _cell_out(db, measurable, week, version, body.value, at)
+
+
+def _cell_out(db: Session, measurable: m.Measurable, week: date, version: int, value, at: datetime) -> CellOut:
     issue = open_issue(db, cell_source(measurable, week), at)
-    return CellOut(week_start=week, version=version, value=float(body.value),
-                   status=engine.measurable_status(goal_of(measurable), body.value, week, week_of(at)),
+    return CellOut(week_start=week, version=version, value=float(value),
+                   status=engine.measurable_status(goal_of(measurable), value, week, week_of(at)),
                    open_issue_id=issue.id if issue else None)

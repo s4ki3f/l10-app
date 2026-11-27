@@ -1,7 +1,12 @@
 """The audit trail: who changed what, when — written in the same transaction as the change.
 
 Call `record()` next to `publish()` in every write path, before the commit: if the change rolls back, so does
-its event; a refused or no-op request (409, 403, an Issue that already existed) records nothing. The table is
+its event. A refused request (409, 403) records nothing, and so does one that changes nothing (the same value
+again, an Issue that already existed, a re-join): those return without writing at all.
+
+`changes` maps each field to [before, after] (a CHECK enforces the shape). "Before" is as of now: a fact dated
+after the app's now hasn't happened yet, so it reads as empty. On a creation, before is null and empty fields are
+left out; a related record is stored as {id, name} or {id, title}, as it was at the time. The table is
 append-only (a database trigger), so history can't be edited after the fact.
 """
 from datetime import date, datetime
@@ -23,6 +28,11 @@ def _jsonable(value):
     if isinstance(value, Decimal):
         return float(value)
     return value
+
+
+def newly_set(**fields) -> dict:
+    """Changes for fields that go from nothing to a value (a creation, a resolution note); empty ones are left out."""
+    return {k: [None, v] for k, v in fields.items() if v is not None}
 
 
 def score_entity_id(measurable_id: str, week: date) -> str:

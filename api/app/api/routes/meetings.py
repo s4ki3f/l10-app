@@ -18,7 +18,7 @@ from ...db import models as m
 from ...db.load import load_dataset
 from ...realtime import publish
 from ...rules import engine
-from ...rules.weeks import local_date
+from ...rules.weeks import COMPANY_TZ
 from ..deps import CurrentUser, current_user, get_db, load_in_team, now, team_reader, team_writer
 from ..errors import conflict, forbidden
 from ..schemas import (
@@ -75,8 +75,9 @@ def _join(db: Session, meeting_id: str, user_id: str, at: datetime) -> bool:
 
 
 def _meeting_label(mt: m.Meeting) -> str:
-    day = local_date(mt.started_at)
-    return f"Level 10 Meeting, {day.strftime('%b')} {day.day}"
+    """'Level 10 Meeting, Nov 11, 9:00 AM' (company time): the start time tells two meetings on one day apart."""
+    t = mt.started_at.astimezone(COMPANY_TZ)
+    return f"Level 10 Meeting, {t.strftime('%b')} {t.day}, {t.hour % 12 or 12}:{t.minute:02d} {'AM' if t.hour < 12 else 'PM'}"
 
 
 def _audit(db: Session, mt: m.Meeting, user: CurrentUser, action: str, at: datetime, changes: dict | None = None):
@@ -202,6 +203,9 @@ def rate_meeting(meeting_id: IdPath, body: RatingIn, user: CurrentUser = Depends
     # a plain column read (not an ORM object): the session must not cache a row the upsert below changes
     old_rating = db.scalar(select(m.MeetingRating.rating).where(
         m.MeetingRating.meeting_id == mt.id, m.MeetingRating.user_id == user.id))
+    if old_rating == body.rating:  # the same rating again: nothing to change or record
+        db.rollback()
+        return meeting_state(db, mt, at)
     db.execute(insert(m.MeetingRating).values(meeting_id=mt.id, user_id=user.id, rating=body.rating, updated_at=at)
                .on_conflict_do_update(index_elements=["meeting_id", "user_id"], set_={"rating": body.rating, "updated_at": at}))
     _audit(db, mt, user, "meeting.rated", at, {"rating": [old_rating, body.rating]})

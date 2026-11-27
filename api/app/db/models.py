@@ -25,6 +25,14 @@ GOAL_TYPES = ("at_least", "at_most", "between", "exactly")
 ROCK_STATUSES = ("on_track", "off_track", "complete")
 SECTIONS = ("scorecard", "ids", "conclude")
 AUDIT_ENTITIES = ("issue", "todo", "score", "meeting")
+AUDIT_ACTIONS = (
+    "issue.created", "issue.raised", "issue.priority_changed", "issue.solved",
+    "todo.created", "todo.done", "todo.undone", "score.set",
+    "meeting.started", "meeting.joined", "meeting.advanced", "meeting.rated", "meeting.ended",
+)
+# every value in an event's `changes` is a [before, after] pair (silent: an array isn't an object, rejected below)
+AUDIT_CHANGES_ARE_PAIRS = ("jsonb_typeof(changes) = 'object' AND NOT jsonb_path_exists("
+                           "changes, 'strict $.* ? (@.type() != \"array\" || @.size() != 2)', '{}', true)")
 
 
 def open_as_of(at):
@@ -283,19 +291,19 @@ class AuditEvent(Base):
     """
     __tablename__ = "audit_events"
     __table_args__ = (
-        CheckConstraint(r"action ~ '^[a-z]+\.[a-z_]+$'", name="audit_action_format"),
+        CheckConstraint(_in("action", AUDIT_ACTIONS), name="audit_action_known"),
         CheckConstraint(_in("entity_type", AUDIT_ENTITIES), name="audit_entity_type_valid"),
-        CheckConstraint("jsonb_typeof(changes) = 'object'", name="audit_changes_object"),
+        CheckConstraint(AUDIT_CHANGES_ARE_PAIRS, name="audit_changes_pairs"),
         Index("ix_audit_team", "team_id", "id"),
         Index("ix_audit_entity", "entity_type", "entity_id", "id"),
     )
     id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
     team_id: Mapped[str] = mapped_column(ForeignKey("teams.id"))
     actor_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
-    action: Mapped[str] = mapped_column(String(48))  # e.g. issue.priority_changed
+    action: Mapped[str] = mapped_column(String(48))  # one of AUDIT_ACTIONS
     entity_type: Mapped[str] = mapped_column(String(16))
     entity_id: Mapped[str] = mapped_column(String(96))  # a score's id is "<measurable>:<week>"
     entity_label: Mapped[str] = mapped_column(Text)  # the name at the time (history keeps its names)
-    changes: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))  # field → [before, after]
+    changes: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))  # field → [before, after], as of now
     at: Mapped[datetime] = mapped_column(Ts)  # app clock, like every other timestamp
 

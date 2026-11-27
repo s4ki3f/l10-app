@@ -235,7 +235,8 @@ test("bonus: the audit trail records who changed what, and another browser sees 
   const blake = await signIn(second, "u2"); // Firefox
   try {
     await expect(blake.getByTestId("live-status")).toHaveAttribute("data-status", "live");
-    await expect(blake.getByTestId("activity")).toBeVisible();
+    // loaded (maybe empty, e.g. right after a reset), before Casey changes anything
+    await expect(blake.getByTestId("activity-card")).toHaveAttribute("data-state", "success");
 
     const title = `Audit me ${Date.now()}`; // unique per run: no reset needed
     await casey.getByLabel("New Issue title").fill(title);

@@ -36,10 +36,18 @@ def test_ids_come_from_the_database(db):
     sp.rollback()
 
 
+def with_changes(changes: str) -> str:
+    return ADD.replace("entity_label, at)", "entity_label, at, changes)").replace("now())", f"now(), '{changes}')")
+
+
 def test_shape_is_checked(db):
-    rejects(db, ADD.replace("'issue.created'", "'Issue Created'"))
+    rejects(db, ADD.replace("'issue.created'", "'issue.renamed'"))  # only the known actions
     rejects(db, ADD.replace("'issue', 'audit-db-test'", "'rock', 'audit-db-test'"))
-    rejects(db, ADD.replace("entity_label, at)", "entity_label, at, changes)").replace("now())", "now(), '[1]')"))
+    for changes in ('[1]', '{"note": "x"}', '{"value": [1]}', '{"value": [1, 2, 3]}'):  # field → [before, after]
+        rejects(db, with_changes(changes))
+    for changes in ('{}', '{"value": [null, 2]}', '{"owner": [null, {"id": "u4", "name": "Dana Diaz"}]}'):
+        db.execute(text(with_changes(changes)))
+    assert mine(db) == 3
 
 
 def test_only_reset_purges_and_only_after_opting_in(db):

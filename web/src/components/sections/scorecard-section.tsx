@@ -12,7 +12,7 @@ import { keys } from "@/lib/keys";
 import { call, useApiMutation, useScorecard } from "@/lib/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDay } from "@/lib/time";
-import { cn } from "@/lib/utils";
+import { cn, withUnit } from "@/lib/utils";
 
 const STATUS = {
   on_track: { label: "On track", mark: "✓", cls: "bg-success/10 text-success" },
@@ -22,9 +22,8 @@ const STATUS = {
 
 function goalText(row: ScorecardRow) {
   const { goal, unit } = row;
-  const u = unit === "count" ? "" : ` ${unit}`;
-  if (goal.type === "between") return `${goal.min}–${goal.max}${u}`;
-  return `${{ at_least: "≥", at_most: "≤", exactly: "=" }[goal.type]} ${goal.value}${u}`;
+  if (goal.type === "between") return `${goal.min}–${withUnit(goal.max, unit)}`;
+  return `${{ at_least: "≥", at_most: "≤", exactly: "=" }[goal.type]} ${withUnit(goal.value, unit)}`;
 }
 
 /** Built once; the Team page and the meeting's Scorecard section both render it. */

@@ -13,7 +13,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import TextClause
 
-from ..audit import record
+from ..audit import newly_set, record
 from ..db import models as m
 from ..realtime import publish
 from .deps import assert_valid_owner
@@ -48,9 +48,11 @@ def todo_source(todo: m.Todo) -> Source:
 
 
 def lock(db: Session, model, *where):
-    """SELECT … FOR UPDATE, refreshing the identity map: the eligibility check that follows reads committed state,
-    and a competing write (marking a To-Do done, editing a score) waits until we commit, or we wait for it."""
-    return db.scalars(select(model).where(*where).with_for_update().execution_options(populate_existing=True)).first()
+    """SELECT … FOR NO KEY UPDATE, refreshing the identity map: the check that follows reads committed state, and a
+    competing write (marking a To-Do done, editing a score) waits until we commit, or we wait for it. NO KEY: rows
+    that merely point at this one (a new To-Do on a locked Issue) don't wait — we never change a key."""
+    return db.scalars(select(model).where(*where).with_for_update(key_share=True)
+                      .execution_options(populate_existing=True)).first()
 
 
 CELL_LOCK = text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))")
@@ -80,9 +82,15 @@ def _index_holder(db: Session, src: Source) -> m.Issue | None:
 
 def raise_or_return(db: Session, src: Source, *, title: str, owner_id: str, at: datetime,
                     check_eligible: Callable[[], None]) -> tuple[m.Issue, bool]:
-    """(issue, created). `check_eligible` raises 409 when the source isn't off track / overdue."""
+    """(issue, created). `check_eligible` raises 409 when the source isn't off track / overdue.
+
+    One transaction from the check to the insert, so a lock the caller holds (the cell, the To-Do row) covers both,
+    and the retry too. Returning an existing Issue writes nothing, so the transaction ends first: other writers of
+    the source don't wait while the response is built.
+    """
     existing = open_issue(db, src, at)
     if existing is not None:  # fast path; the insert below is what makes it race-safe
+        db.rollback()
         return existing, False
     check_eligible()
     assert_valid_owner(db, src.team_id, owner_id)
@@ -96,13 +104,16 @@ def raise_or_return(db: Session, src: Source, *, title: str, owner_id: str, at: 
         ).scalar()
         if inserted:
             record(db, team_id=src.team_id, actor_id=owner_id, action="issue.raised", entity_type="issue",
-                   entity_id=inserted, label=title, at=at, changes={"source": src.columns})
+                   entity_id=inserted, label=title, at=at, changes=newly_set(title=title, **src.columns))
             publish(db, src.team_id, "issues")
-        db.commit()
-        if inserted:
+            db.commit()
             return db.get(m.Issue, inserted), True
+        # lost to a concurrent insert. No commit here: under READ COMMITTED the next statement already sees the
+        # winner, and the caller's lock stays held, so the eligibility checked above still holds for a retry.
         winner = _index_holder(db, src)
         if winner is not None:
+            db.rollback()
             return winner, False
         # the winner was solved between our conflict and our read: the source is free again, try once more
+    db.rollback()
     raise AppError(503, "retry", "the Issue changed while it was being created; try again")

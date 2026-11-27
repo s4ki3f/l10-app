@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session
 
-from ...audit import record
+from ...audit import newly_set, record
 from ...db import models as m
 from ...db.load import issue_of, todo_of
 from ...realtime import publish
@@ -100,7 +100,7 @@ def create_issue(
     db.add(issue)
     db.flush()
     record(db, team_id=team.id, actor_id=user.id, action="issue.created", entity_type="issue", entity_id=issue.id,
-           label=issue.title, at=at, changes={"title": issue.title, "priority": issue.priority})
+           label=issue.title, at=at, changes=newly_set(title=issue.title, priority=issue.priority))
     publish(db, team.id, "issues")
     db.commit()
     return issues_out(db, [issue])[0]
@@ -123,9 +123,11 @@ def add_todo(
     )
     db.add(todo)
     db.flush()
+    owner = db.get(m.User, todo.owner_id)  # names as they are now: the trail must read the same later
     record(db, team_id=issue.team_id, actor_id=user.id, action="todo.created", entity_type="todo", entity_id=todo.id,
-           label=todo.title, at=at,
-           changes={"owner_id": todo.owner_id, "due_date": todo.due_date, "source_issue_id": issue.id})
+           label=todo.title, at=at, changes=newly_set(
+               title=todo.title, owner={"id": owner.id, "name": owner.name}, due_date=todo.due_date,
+               source_issue={"id": issue.id, "title": issue.title}))
     publish(db, issue.team_id, "todos")
     db.commit()
     return todos_out(db, [todo], at)[0]
@@ -151,6 +153,10 @@ def set_priority(issue_id: IdPath, body: IssuePatch, user: CurrentUser = Depends
     load_in_team(db, m.Issue, issue_id, user, write=True, what="issue")
     issue = lock(db, m.Issue, m.Issue.id == issue_id)  # exact "before" for the audit trail
     old_priority = issue.priority
+    if (body.priority == old_priority and not engine.happened(issue.solved_at, at)
+            and body.expected_version in (None, issue.version)):
+        db.rollback()  # the same priority again: no write, no version bump, no event, no hint
+        return issues_out(db, [issue])[0]
     # Check-and-write in ONE statement: "still unsolved as of now" (and, if given, "still the version you saw")
     # are WHERE conditions, so a solve that commits between our read and our write can't be overwritten.
     stmt = update(m.Issue).where(m.Issue.id == issue.id, _unsolved_as_of(at))
@@ -185,7 +191,7 @@ def solve_issue(issue_id: IdPath, body: SolveIn, user: CurrentUser = Depends(cur
         db.rollback()
         raise conflict("issue_solved", "this Issue is already solved")
     record(db, team_id=issue.team_id, actor_id=user.id, action="issue.solved", entity_type="issue", entity_id=issue.id,
-           label=issue.title, at=at, changes={"resolution_note": body.note})
+           label=issue.title, at=at, changes=newly_set(resolution_note=body.note))
     publish(db, issue.team_id, "issues")
     db.commit()
     db.refresh(issue)
@@ -202,11 +208,15 @@ def _unsolved_as_of(at: datetime):
 def _set_done(db: Session, todo_id: str, user: CurrentUser, at: datetime, done: bool) -> TodoOut:
     load_in_team(db, m.Todo, todo_id, user, write=True, what="to-do")
     todo = lock(db, m.Todo, m.Todo.id == todo_id)  # serialises with Make it an Issue on this To-Do
-    old_done_at = todo.done_at
+    # as of now: a done time after now hasn't happened yet (the seed can hold one), so it reads as not done
+    was_done_at = todo.done_at if engine.happened(todo.done_at, at) else None
+    if (was_done_at is not None) == done:  # already done / already not done: nothing to change or record
+        db.rollback()
+        return todos_out(db, [todo], at)[0]
     todo.done_at, todo.updated_at = (at if done else None), at
     record(db, team_id=todo.team_id, actor_id=user.id, action="todo.done" if done else "todo.undone",
            entity_type="todo", entity_id=todo.id, label=todo.title, at=at,
-           changes={"done_at": [old_done_at, todo.done_at]})
+           changes={"done_at": [was_done_at, todo.done_at]})
     publish(db, todo.team_id, "todos")
     db.commit()
     return todos_out(db, [todo], at)[0]

@@ -191,7 +191,7 @@ function Conclude({ state, me, teamId }: { state: MeetingState; me: Me; teamId: 
             <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Your rating">
               {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
                 <Button key={n} size="sm" variant={mine === n ? "default" : "outline"} role="radio" aria-checked={mine === n}
-                        className="w-10" disabled={rate.isPending} onClick={() => rate.mutate(n)} data-testid={`rate-${n}`}>{n}</Button>
+                        className="w-10" disabled={rate.isPending} onClick={() => { if (mine !== n) rate.mutate(n); }} data-testid={`rate-${n}`}>{n}</Button>
               ))}
             </div>
           ) : <p className="text-sm text-muted-foreground">{me.can_write ? "Join the meeting to rate it." : "Observers don't rate."}</p>}

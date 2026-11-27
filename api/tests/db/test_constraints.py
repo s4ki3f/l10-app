@@ -121,13 +121,23 @@ def test_rules_report_from_database_matches_answer_key(db):
     assert report == {k: v for k, v in KEY.items() if not k.startswith("_")}
 
 
-def test_seed_is_safe_to_rerun(db):
-    before = db.execute(text("SELECT count(*) FROM scores")).scalar()
+def test_seed_rerun_only_adds_what_is_missing(db):
+    """Every `docker compose up` reruns the seed. It must never change a row that exists: that would silently undo
+    what people did in the app and contradict the audit trail. Only --reset restores the seed's values."""
+    def state():
+        return db.execute(text(
+            "SELECT (SELECT count(*) FROM scores), (SELECT value FROM scores WHERE measurable_id = 'm1' "
+            "AND week_start = '2026-11-02'), (SELECT priority FROM issues WHERE id = 'i3'), "
+            "(SELECT done_at IS NOT NULL FROM todos WHERE id = 't31')")).one()
+
+    rows, *_ = state()
     db.execute(text("UPDATE scores SET value = 999 WHERE measurable_id = 'm1' AND week_start = '2026-11-02'"))
+    db.execute(text("UPDATE issues SET priority = 1 WHERE id = 'i3'"))
+    db.execute(text("UPDATE todos SET done_at = now() WHERE id = 't31'"))
+    db.execute(text("DELETE FROM scores WHERE measurable_id = 'm2' AND week_start = '2026-11-02'"))  # now missing
     load_seed(db, SEED)
     load_seed(db, SEED)
-    assert db.execute(text("SELECT count(*) FROM scores")).scalar() == before
-    assert db.execute(text("SELECT value FROM scores WHERE measurable_id = 'm1' AND week_start = '2026-11-02'")).scalar() == 8
+    assert tuple(state()) == (rows, 999, 1, True)  # the app's changes stand; the missing row is back
 
 
 def test_reset_restores_exactly_the_seed(db):
