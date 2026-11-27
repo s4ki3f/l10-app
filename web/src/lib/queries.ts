@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, ApiError, unwrap } from "./api/client";
 import type { Me, Section } from "./api/types";
-import { keys, type Topic } from "./keys";
+import { AFFECTS, keys, type Topic } from "./keys";
 
 const team = (team_id: string) => ({ params: { path: { team_id } } });
 
@@ -77,13 +77,16 @@ export function useApiMutation<V, R>(
   teamId: string,
   topics: Topic[],
   fn: (vars: V) => Promise<R>,
-  opts: { success?: string; quiet?: (e: ApiError) => boolean } = {},
+  opts: { success?: string; quiet?: (e: ApiError) => boolean; onData?: (data: R) => void } = {},
 ) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: fn,
-    onSuccess: () => {
-      for (const t of topics) qc.invalidateQueries({ queryKey: keys.topic(teamId, t) });
+    onSuccess: (data) => {
+      opts.onData?.(data);
+      // the same expansion the live hints use, so this browser never waits on its own echo
+      const stale = new Set(topics.flatMap((t) => [t, ...(AFFECTS[t] ?? [])]));
+      for (const t of stale) qc.invalidateQueries({ queryKey: keys.topic(teamId, t) });
       if (opts.success) toast.success(opts.success);
     },
     onError: (e) => {

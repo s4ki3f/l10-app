@@ -13,6 +13,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
+    and_, or_,
     CheckConstraint, Date, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, Numeric,
     PrimaryKeyConstraint, String, Text, UniqueConstraint, text,
 )
@@ -22,6 +23,11 @@ ROLES = ("admin", "team_member", "observer")
 GOAL_TYPES = ("at_least", "at_most", "between", "exactly")
 ROCK_STATUSES = ("on_track", "off_track", "complete")
 SECTIONS = ("scorecard", "ids", "conclude")
+
+
+def open_as_of(at):
+    """SQL twin of engine.is_unsolved: the Issue exists by `at` and isn't solved by then ("as of now")."""
+    return and_(Issue.created_at <= at, or_(Issue.solved_at.is_(None), Issue.solved_at > at))
 
 
 def new_id(prefix: str) -> str:
@@ -84,6 +90,7 @@ class Measurable(Base):
     __tablename__ = "measurables"
     __table_args__ = (
         _owner_fk(),
+        UniqueConstraint("id", "team_id", name="uq_measurables_id_team"),  # target of same-team FKs
         CheckConstraint(_in("goal_type", GOAL_TYPES), name="goal_type_valid"),
         CheckConstraint(
             "(goal_type = 'between' AND goal_min IS NOT NULL AND goal_max IS NOT NULL"
@@ -144,7 +151,10 @@ class Issue(Base):
     __tablename__ = "issues"
     __table_args__ = (
         _owner_fk(),
-        ForeignKeyConstraint(["source_measurable_id"], ["measurables.id"]),
+        ForeignKeyConstraint(["source_measurable_id", "team_id"], ["measurables.id", "measurables.team_id"],
+                             name="issues_source_measurable_same_team_fkey"),
+        UniqueConstraint("id", "team_id", name="uq_issues_id_team"),
+        CheckConstraint("solved_at IS NULL OR solved_at >= created_at", name="issue_solved_after_created"),
         CheckConstraint("length(btrim(title)) > 0", name="issue_title_present"),
         CheckConstraint("priority IS NULL OR priority BETWEEN 1 AND 5", name="issue_priority_range"),
         CheckConstraint(
@@ -173,6 +183,7 @@ class Issue(Base):
     resolution_note: Mapped[str | None] = mapped_column(Text)
     source_measurable_id: Mapped[str | None] = mapped_column(Id)
     source_week: Mapped[date | None] = mapped_column(Date)
+    updated_at: Mapped[datetime | None] = mapped_column(Ts)  # last app write (null for untouched seed rows)
 
 
 class Todo(Base):
@@ -180,6 +191,9 @@ class Todo(Base):
     __table_args__ = (
         _owner_fk(),
         CheckConstraint("length(btrim(title)) > 0", name="todo_title_present"),
+        CheckConstraint("done_at IS NULL OR done_at >= created_at", name="todo_done_after_created"),
+        ForeignKeyConstraint(["source_issue_id", "team_id"], ["issues.id", "issues.team_id"],
+                             name="todos_source_issue_same_team_fkey"),
         Index("ix_todo_team_due", "team_id", "due_date"),
     )
     id: Mapped[str] = mapped_column(Id, primary_key=True, default=lambda: new_id("t"))
@@ -189,7 +203,8 @@ class Todo(Base):
     due_date: Mapped[date] = mapped_column(Date)
     done_at: Mapped[datetime | None] = mapped_column(Ts)
     created_at: Mapped[datetime] = mapped_column(Ts)
-    source_issue_id: Mapped[str | None] = mapped_column(ForeignKey("issues.id"))
+    source_issue_id: Mapped[str | None] = mapped_column(Id)
+    updated_at: Mapped[datetime | None] = mapped_column(Ts)  # last app write (null for untouched seed rows)
 
 
 class Meeting(Base):

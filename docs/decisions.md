@@ -4,7 +4,7 @@
 - **Choice.** Store facts and compute statuses. Seed ids are the primary keys.
   - A week is the `date` of its Chicago Monday, a due date is a plain `date`, and a moment is UTC `timestamptz`.
   - An Issue's source is a real foreign key, `source_measurable_id`, plus `source_week`, with a CHECK requiring both or neither. A To-Do links back with `source_issue_id`.
-  - Postgres holds every rule it can: one score per cell; one unsolved Issue per cell and one live meeting per team (partial unique indexes); only attendees rate (composite FK); CHECKs on ranges, Monday weeks, solved ⇔ note and goal shape.
+  - Postgres holds every rule it can: one score per cell; one unsolved Issue per cell and one live meeting per team (partial unique indexes); only attendees rate (composite FK); CHECKs on ranges, Monday weeks, solved ⇔ note, goal shape, and nothing solved or done before it was created. Source links stay in the team (composite FKs to `(id, team_id)`).
 - **Rejected.** A JSON source field, which can't be indexed or kept unique. Stored statuses, which go stale.
 - **Cost.** Statuses are recomputed per read; at scale they'd be cached per (team, week). Who may own (any Admin, or a Team Member of the team) spans users and memberships, so the API guard checks it, proven by API tests.
 
@@ -25,8 +25,8 @@
   - One `LISTEN` connection per process fans hints out per team.
   - Browsers refetch through the guarded API, so a missed hint costs nothing.
 - **Timer.** It's a start time plus `server_now`; the client corrects its own clock offset. An overrun shows "over time" and never advances.
-- **Recovery.** Late join, refresh and reconnect share one path, and the order matters: **listen, then fetch**. The server sends `hello` only after the browser is subscribed and LISTEN is up, and the browser refetches on every `hello`, so nothing that happened before the subscription is lost. Control is tied to the user.
-- **Stale clicks.** Advance names its `from_section`, so a stale double-click gets 409.
+- **Recovery.** Late join, refresh and reconnect share one path, and the order matters: **listen, then fetch**. The server sends `hello` only after the browser is subscribed and LISTEN is up, and the browser refetches on every `hello`, so nothing that happened before the subscription is lost. Control is tied to the user. If the server's LISTEN connection drops, it tells every stream to resync when it's back, and it refuses new streams (503) until then rather than promise delivery it can't keep.
+- **Stale clicks.** Advance names its `from_section`, so a stale double-click gets 409. Meeting commands lock the meeting row, so a Rate or Join can't land after an End it raced with.
 - **Rejected.** WebSockets (traffic down is one-way, while SSE reconnects by itself over HTTP); server memory (lost on restart); Redis (an extra service Postgres already covers here).
 - **Cost.** One connection per open tab. The stream releases its DB session after authorizing, so tabs don't hold pool slots.
 

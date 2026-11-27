@@ -168,15 +168,75 @@ def fill(path: str) -> str:
                                              "meeting_id": "mt1", "measurable_id": "m1", "week": "2026-11-02"}.get(mt.group(1), "x"), path)
 
 
+# A minimal VALID body per write route, so validation can't answer first and hide a missing guard.
+VALID_BODY = {
+    ("POST", "/teams/{team_id}/issues"): {"title": "probe"},
+    ("POST", "/issues/{issue_id}/todos"): {"title": "probe", "owner_id": "u2"},
+    ("PATCH", "/issues/{issue_id}"): {"priority": 3},
+    ("POST", "/issues/{issue_id}/solve"): {"note": "probe"},
+    ("PUT", "/measurables/{measurable_id}/weeks/{week}/score"): {"value": 1},
+    ("POST", "/meetings/{meeting_id}/advance"): {"from_section": "scorecard"},
+    ("PUT", "/meetings/{meeting_id}/rating"): {"rating": 5},
+}
+OBSERVER_MAY = {("POST", "/meetings/{meeting_id}/join")}  # Observers can join meetings
+
+
 @pytest.mark.parametrize("method,path", sorted(set(team_scoped_routes())))
-def test_every_scoped_route_rejects_anonymous_and_outsiders(client, as_user, method, path):
+def test_every_scoped_route_guards_anonymous_outsiders_and_observers(client, as_user, method, path):
+    body = VALID_BODY.get((method, path))
     client.cookies.clear()
-    assert client.request(method, fill(path), json={}).status_code == 401, "anonymous must be 401"
-    r = as_user("u6").request(method, fill(path), json={})
-    assert r.status_code in (404, 422), f"outsider got {r.status_code}"
-    if r.status_code == 422:  # body validation ran first; with a valid body it must still be 404
-        assert error_code(r) == "invalid_input"
+    assert client.request(method, fill(path), json=body).status_code == 401, "anonymous must be 401"
+    r = as_user("u6").request(method, fill(path), json=body)  # u6: Sales only; every id points at Leadership
+    assert (r.status_code, error_code(r)) == (404, "not_found"), f"outsider got {r.status_code}"
+    if method != "GET" and (method, path) not in OBSERVER_MAY:
+        r = as_user("u5").request(method, fill(path), json=body)  # u5: Observer in Leadership
+        assert (r.status_code, error_code(r)) == (403, "forbidden"), f"observer got {r.status_code}"
+
+
+def test_every_write_route_has_a_valid_probe_body():
+    writes = {(m, p) for m, p in team_scoped_routes() if m != "GET"}
+    bodiless = {("POST", "/teams/{team_id}/meetings"), ("POST", "/meetings/{meeting_id}/join"),
+                ("POST", "/meetings/{meeting_id}/end"), ("POST", "/todos/{todo_id}/done"), ("POST", "/todos/{todo_id}/undo"),
+                ("POST", "/measurables/{measurable_id}/weeks/{week}/issue")}
+    assert writes - bodiless <= set(VALID_BODY), f"add a probe body for: {sorted(writes - bodiless - set(VALID_BODY))}"
 
 
 def test_route_walk_found_routes():
     assert len(set(team_scoped_routes())) >= 4
+
+
+class TestMalformedInputIsNeverA500:
+    """From the parallel security review: odd bytes and types must be a 4xx in the one error shape."""
+
+    @pytest.mark.parametrize("path", ["/teams/%00", "/meetings/%00/summary", "/teams/team_lead%20x/issues", "/issues/" + "x" * 65 + "/solve"])
+    def test_bad_ids_in_the_path_are_422(self, as_user, path):
+        c = as_user("u1")
+        r = c.post(path, json={"note": "x"}) if path.endswith("/solve") else c.get(path)
+        assert (r.status_code, error_code(r)) == (422, "invalid_input")
+
+    def test_nul_in_text_is_422(self, as_user):
+        r = as_user("u2").post("/teams/team_lead/issues", json={"title": "bad\u0000title"})
+        assert (r.status_code, error_code(r)) == (422, "invalid_input")
+
+    def test_nul_in_login_is_422(self, client):
+        assert client.post("/auth/login", json={"user_id": "u\u0000"}).status_code == 422
+
+    def test_non_ascii_cookie_is_401(self, client):
+        # raw bytes, as curl or a stray browser cookie sends them (httpx won't encode non-ASCII cookies itself)
+        client.cookies.clear()
+        raw = f"{SESSION_COOKIE}=x.".encode() + "é".encode("utf-8")
+        assert client.get("/me", headers={"cookie": raw}).status_code == 401
+
+    @pytest.mark.parametrize("body", [{"priority": True}, {"priority": "3"}, {"priority": 3.0}])
+    def test_priority_must_be_a_real_integer(self, as_user, body):
+        assert as_user("u2").patch("/issues/i3", json=body).status_code == 422
+
+
+def test_sessions_expire(client):
+    from app.api.deps import SESSION_MAX_AGE_SECONDS
+    import time as _time
+
+    client.cookies.set(SESSION_COOKIE, sign_session("u2", issued_at=int(_time.time()) - SESSION_MAX_AGE_SECONDS - 5))
+    assert client.get("/me").status_code == 401
+    client.cookies.set(SESSION_COOKIE, sign_session("u2"))
+    assert client.get("/me").status_code == 200

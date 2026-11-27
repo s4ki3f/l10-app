@@ -1,12 +1,14 @@
 """Sign-in via the seeded user switcher (sign-up is out of scope). Identity lives only in the signed cookie."""
+import os
+
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ...db import models as m
-from ..deps import SESSION_COOKIE, CurrentUser, current_user, get_db, sign_session, team_reader
+from ..deps import SESSION_COOKIE, SESSION_MAX_AGE_SECONDS, CurrentUser, current_user, get_db, sign_session, team_reader
 from ..errors import AppError
-from ..schemas import LoginIn, MeOut, TeamOut, UserOut
+from ..schemas import IdPath, LoginIn, MeOut, TeamOut, UserOut
 
 router = APIRouter(tags=["auth"])
 
@@ -21,7 +23,8 @@ def login(body: LoginIn, response: Response, db: Session = Depends(get_db)):
     user = db.get(m.User, body.user_id)
     if user is None:
         raise AppError(401, "unknown_user", "no such user")
-    response.set_cookie(SESSION_COOKIE, sign_session(user.id), httponly=True, samesite="lax", path="/")
+    response.set_cookie(SESSION_COOKIE, sign_session(user.id), httponly=True, samesite="lax", path="/",
+                        max_age=SESSION_MAX_AGE_SECONDS, secure=os.environ.get("COOKIE_SECURE") == "1")
     return user
 
 
@@ -43,14 +46,14 @@ def me(user: CurrentUser = Depends(current_user), db: Session = Depends(get_db))
 
 
 @router.get("/teams/{team_id}", response_model=TeamOut, summary="One team you can see (404 otherwise)")
-def get_team(team_id: str, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db)):
+def get_team(team_id: IdPath, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db)):
     team = team_reader(team_id, user, db)
     return TeamOut(id=team.id, name=team.name)
 
 
 @router.get("/teams/{team_id}/members", response_model=list[UserOut],
             summary="The team's members plus every Admin (Admins act in every team). Owner pickers drop Observers.")
-def team_members(team_id: str, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db)):
+def team_members(team_id: IdPath, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db)):
     team = team_reader(team_id, user, db)
     in_team = select(m.Membership.user_id).where(m.Membership.team_id == team.id)
     return db.scalars(

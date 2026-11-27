@@ -15,7 +15,7 @@ from ..deps import (
 )
 from ..errors import conflict
 from ..schemas import (
-    CompletionOut, IssueCreate, IssueOut, IssuePatch, IssueSource, PersonRef, SolveIn, TodoCreate, TodoList, TodoOut,
+    CompletionOut, IdPath, IssueCreate, IssueOut, IssuePatch, IssueSource, PersonRef, SolveIn, TodoCreate, TodoList, TodoOut,
 )
 
 router = APIRouter(tags=["issues"])
@@ -84,7 +84,8 @@ def create_issue(
     at: datetime = Depends(now),
 ):
     assert_valid_owner(db, team.id, user.id)
-    issue = m.Issue(id=m.new_id("i"), team_id=team.id, title=body.title, owner_id=user.id, priority=body.priority, created_at=at)
+    issue = m.Issue(id=m.new_id("i"), team_id=team.id, title=body.title, owner_id=user.id, priority=body.priority,
+                    created_at=at, updated_at=at)
     db.add(issue)
     db.flush()
     publish(db, team.id, "issues")
@@ -95,7 +96,7 @@ def create_issue(
 @router.post("/issues/{issue_id}/todos", response_model=TodoOut, status_code=status.HTTP_201_CREATED,
              summary="Add a To-Do to an Issue: due in 7 days, owner from the team's Admins and Team Members")
 def add_todo(
-    issue_id: str,
+    issue_id: IdPath,
     body: TodoCreate,
     user: CurrentUser = Depends(current_user),
     db: Session = Depends(get_db),
@@ -105,7 +106,7 @@ def add_todo(
     assert_valid_owner(db, issue.team_id, body.owner_id)
     todo = m.Todo(
         id=m.new_id("t"), team_id=issue.team_id, title=body.title, owner_id=body.owner_id,
-        due_date=local_date(at) + timedelta(days=TODO_DUE_DAYS), created_at=at, source_issue_id=issue.id,
+        due_date=local_date(at) + timedelta(days=TODO_DUE_DAYS), created_at=at, updated_at=at, source_issue_id=issue.id,
     )
     db.add(todo)
     db.flush()
@@ -129,24 +130,24 @@ def list_todos(team: m.Team = Depends(team_reader), db: Session = Depends(get_db
 # ---------- changing Issues ----------
 
 @router.patch("/issues/{issue_id}", response_model=IssueOut, summary="Set or clear an unsolved Issue's priority")
-def set_priority(issue_id: str, body: IssuePatch, user: CurrentUser = Depends(current_user),
-                 db: Session = Depends(get_db)):
+def set_priority(issue_id: IdPath, body: IssuePatch, user: CurrentUser = Depends(current_user),
+                 db: Session = Depends(get_db), at: datetime = Depends(now)):
     issue = load_in_team(db, m.Issue, issue_id, user, write=True, what="issue")
-    if issue.solved_at is not None:
+    if engine.happened(issue.solved_at, at):
         raise conflict("issue_solved", "a solved Issue can't be reprioritized")
-    issue.priority = body.priority
+    issue.priority, issue.updated_at = body.priority, at
     publish(db, issue.team_id, "issues")
     db.commit()
     return issues_out(db, [issue])[0]
 
 
 @router.post("/issues/{issue_id}/solve", response_model=IssueOut, summary="Solve an Issue; a resolution note is required")
-def solve_issue(issue_id: str, body: SolveIn, user: CurrentUser = Depends(current_user),
+def solve_issue(issue_id: IdPath, body: SolveIn, user: CurrentUser = Depends(current_user),
                 db: Session = Depends(get_db), at: datetime = Depends(now)):
     issue = load_in_team(db, m.Issue, issue_id, user, write=True, what="issue")
-    if issue.solved_at is not None:
+    if engine.happened(issue.solved_at, at):  # "as of now", like the Issues list
         raise conflict("issue_solved", "this Issue is already solved")
-    issue.solved_at, issue.resolution_note = at, body.note
+    issue.solved_at, issue.resolution_note, issue.updated_at = at, body.note, at
     publish(db, issue.team_id, "issues")
     db.commit()
     return issues_out(db, [issue])[0]
@@ -156,19 +157,19 @@ def solve_issue(issue_id: str, body: SolveIn, user: CurrentUser = Depends(curren
 
 def _set_done(db: Session, todo_id: str, user: CurrentUser, at: datetime, done: bool) -> TodoOut:
     todo = load_in_team(db, m.Todo, todo_id, user, write=True, what="to-do")
-    todo.done_at = at if done else None
+    todo.done_at, todo.updated_at = (at if done else None), at
     publish(db, todo.team_id, "todos")
     db.commit()
     return todos_out(db, [todo], at)[0]
 
 
 @router.post("/todos/{todo_id}/done", response_model=TodoOut, summary="Mark a To-Do done (done time = now)")
-def mark_done(todo_id: str, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db),
+def mark_done(todo_id: IdPath, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db),
               at: datetime = Depends(now)):
     return _set_done(db, todo_id, user, at, True)
 
 
 @router.post("/todos/{todo_id}/undo", response_model=TodoOut, summary="Undo: mark a To-Do not done")
-def undo_done(todo_id: str, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db),
+def undo_done(todo_id: IdPath, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db),
               at: datetime = Depends(now)):
     return _set_done(db, todo_id, user, at, False)

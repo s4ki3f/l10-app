@@ -9,6 +9,7 @@ import base64
 import hashlib
 import hmac
 import os
+import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime
@@ -21,8 +22,10 @@ from ..db import models as m
 from ..db.session import session_factory
 from ..rules.clock import Clock
 from .errors import forbidden, invalid, not_found, unauthenticated
+from .schemas import IdPath
 
 SESSION_COOKIE = "l10_session"
+SESSION_MAX_AGE_SECONDS = 12 * 3600  # wall-clock security timer, not business time (APP_NOW)
 _DEV_SECRET = "dev-only-secret-change-me"
 
 
@@ -47,23 +50,29 @@ def _secret() -> bytes:
     return os.environ.get("SESSION_SECRET", _DEV_SECRET).encode()
 
 
-def sign_session(user_id: str) -> str:
-    payload = base64.urlsafe_b64encode(user_id.encode()).decode()
+def sign_session(user_id: str, issued_at: int | None = None) -> str:
+    """Signed `user_id|issued_at`. Stateless: expiry is checked on read; logout clears the browser's copy."""
+    issued = int(time.time()) if issued_at is None else issued_at
+    payload = base64.urlsafe_b64encode(f"{user_id}|{issued}".encode()).decode()
     mac = hmac.new(_secret(), payload.encode(), hashlib.sha256).hexdigest()
     return f"{payload}.{mac}"
 
 
 def read_session(token: str | None) -> str | None:
+    """The user id, or None for anything missing, forged, malformed or expired. Never raises."""
     if not token or "." not in token:
         return None
     payload, mac = token.rsplit(".", 1)
-    expected = hmac.new(_secret(), payload.encode(), hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(mac, expected):
-        return None
+    expected = hmac.new(_secret(), payload.encode(), hashlib.sha256).hexdigest().encode()
     try:
-        return base64.urlsafe_b64decode(payload.encode()).decode()
-    except ValueError:
+        if not hmac.compare_digest(mac.encode("utf-8"), expected):  # bytes: non-ASCII can't raise
+            return None
+        user_id, issued = base64.urlsafe_b64decode(payload.encode("ascii")).decode().rsplit("|", 1)
+        if time.time() - int(issued) > SESSION_MAX_AGE_SECONDS:
+            return None
+    except (ValueError, TypeError, UnicodeError):
         return None
+    return user_id
 
 
 # ---------- who you are ----------
@@ -107,7 +116,7 @@ def authorize(user: CurrentUser, team_id: str, *, write: bool) -> None:
         raise forbidden("observers can read but not change data")
 
 
-def team_reader(team_id: str, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db)) -> m.Team:
+def team_reader(team_id: IdPath, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db)) -> m.Team:
     """For /teams/{team_id}/… reads."""
     team = db.get(m.Team, team_id)
     if team is None:
@@ -116,7 +125,7 @@ def team_reader(team_id: str, user: CurrentUser = Depends(current_user), db: Ses
     return team
 
 
-def team_writer(team_id: str, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db)) -> m.Team:
+def team_writer(team_id: IdPath, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db)) -> m.Team:
     """For /teams/{team_id}/… writes."""
     team = team_reader(team_id, user, db)
     authorize(user, team.id, write=True)

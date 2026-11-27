@@ -12,8 +12,10 @@ import logging
 from fastapi import APIRouter, Cookie, Request
 from fastapi.responses import StreamingResponse
 
-from ...realtime import broker
+from ...realtime import RESYNC, broker
 from ..deps import SESSION_COOKIE, current_user, get_db, team_reader
+from ..errors import AppError
+from ..schemas import IdPath
 
 router = APIRouter(tags=["realtime"])
 log = logging.getLogger("l10.realtime")
@@ -43,13 +45,16 @@ def _sse(event: str, data: dict) -> str:
     response_class=StreamingResponse,
     responses={200: {"content": {"text/event-stream": {}}}},
 )
-async def team_events(request: Request, team_id: str, token: str | None = Cookie(default=None, alias=SESSION_COOKIE)):
+async def team_events(request: Request, team_id: IdPath, token: str | None = Cookie(default=None, alias=SESSION_COOKIE)):
     await asyncio.to_thread(_authorize, request, team_id, token)
     sub = broker.subscribe(team_id)
     # "hello" promises the client it won't miss anything from now on, so it must come after we are
     # subscribed AND this process's LISTEN connection is up (on a fresh process it starts lazily).
     if not await asyncio.to_thread(broker.ready.wait, LISTEN_READY_SECONDS):
-        log.warning("LISTEN not ready after %ss; hints may be delayed until it reconnects", LISTEN_READY_SECONDS)
+        # Don't promise delivery we can't keep: a non-200 makes the browser back off and retry later.
+        broker.unsubscribe(sub)
+        log.warning("LISTEN not ready after %ss; refusing the stream", LISTEN_READY_SECONDS)
+        raise AppError(503, "realtime_unavailable", "live updates are reconnecting; retry shortly")
 
     async def stream():
         try:
@@ -61,6 +66,11 @@ async def team_events(request: Request, team_id: str, token: str | None = Cookie
                 except TimeoutError:
                     yield ": ping\n\n"
                     continue
+                if sub.overflowed:  # hints were dropped while this client lagged: drain and resync instead
+                    sub.overflowed = False
+                    while not sub.queue.empty():
+                        sub.queue.get_nowait()
+                    message = RESYNC
                 yield _sse("change", {k: v for k, v in message.items() if k != "team_id"})
         finally:
             broker.unsubscribe(sub)

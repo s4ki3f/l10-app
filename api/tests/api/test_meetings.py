@@ -232,3 +232,27 @@ def test_simultaneous_starts_create_one_meeting(real_db):
     assert sorted(s for s, _ in out).count(201) == 1 and len({i for _, i in out}) == 1, out
     with real_db.connect() as conn:
         assert conn.execute(text("SELECT count(*) FROM meetings WHERE team_id='team_lead' AND ended_at IS NULL")).scalar() == 1
+
+
+def test_rate_racing_end_never_lands_after_it(real_db):
+    """End holds the meeting row while it commits; a Rate arriving meanwhile must wait, then see the End (409)."""
+    with TestClient(app) as c:
+        c.post("/auth/login", json={"user_id": "u3"})
+        mt = start(c).json()["id"]
+        c.post(f"/meetings/{mt}/advance", json={"from_section": "scorecard"})
+        c.post(f"/meetings/{mt}/advance", json={"from_section": "ids"})
+
+        result = {}
+        with real_db.connect() as end_tx:  # plays the facilitator's End, mid-transaction
+            tx = end_tx.begin()
+            end_tx.execute(text("SELECT 1 FROM meetings WHERE id = :id FOR UPDATE"), {"id": mt})
+            t = threading.Thread(target=lambda: result.update(r=c.put(f"/meetings/{mt}/rating", json={"rating": 9})))
+            t.start()
+            t.join(0.5)
+            assert t.is_alive(), "Rate didn't wait for the End holding the meeting row"
+            end_tx.execute(text("UPDATE meetings SET ended_at = started_at + interval '1 minute' WHERE id = :id"), {"id": mt})
+            tx.commit()
+        t.join(10)
+        assert (result["r"].status_code, result["r"].json()["error"]["code"]) == (409, "meeting_ended")
+        with real_db.connect() as conn:
+            assert conn.execute(text("SELECT count(*) FROM meeting_ratings WHERE meeting_id = :id"), {"id": mt}).scalar() == 0

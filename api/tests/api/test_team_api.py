@@ -190,3 +190,29 @@ def test_team_members_for_owner_pickers(as_user):
         ("u1", "admin"), ("u2", "team_member"), ("u3", "team_member"), ("u4", "team_member"), ("u5", "observer")]
     ops = {u["id"] for u in as_user("u8").get("/teams/team_ops/members").json()}
     assert ops == {"u1", "u4", "u8", "u9"}  # members + every Admin
+
+
+class TestAsOfNowAcrossTheApi:
+    """Every API path uses the same 'as of now' rule as the Issues list and the rules report.
+    On Nov 4 at 12:00Z, i6 (m4 / Oct 26) exists but is not yet solved (it's solved at 15:40Z)."""
+
+    @pytest.fixture
+    def nov4(self):
+        app.state.clock = FrozenClock(NOW - timedelta(days=7, hours=3))  # 2026-11-04T12:00Z
+
+    def test_list_cell_and_make_it_an_issue_agree(self, as_user, nov4):
+        c = as_user("u3")
+        assert "i6" in [i["id"] for i in c.get("/teams/team_lead/issues").json()]
+        rows = {r["id"]: r for r in c.get("/teams/team_lead/scorecard").json()["rows"]}
+        assert {x["week_start"]: x for x in rows["m4"]["cells"]}["2026-10-26"]["open_issue_id"] == "i6"
+        r = c.post("/measurables/m4/weeks/2026-10-26/issue")
+        assert (r.status_code, r.json()["id"]) == (200, "i6")  # no duplicate for the cell
+
+    def test_an_issue_solved_later_can_be_solved_or_reprioritized_now(self, as_user, nov4):
+        c = as_user("u3")
+        assert c.patch("/issues/i6", json={"priority": 4}).status_code == 200
+        assert c.post("/issues/i6/solve", json={"note": "fixed earlier"}).status_code == 200
+
+    def test_summary_of_a_meeting_that_has_not_ended_yet_is_409(self, as_user):
+        app.state.clock = FrozenClock(NOW - timedelta(days=10))  # Nov 1: mt2 is on Nov 4
+        assert as_user("u2").get("/meetings/mt2/summary").json()["error"]["code"] == "meeting_live"

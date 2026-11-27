@@ -1,7 +1,7 @@
 """Read the rules engine's Dataset from Postgres (used by the rules report and the API)."""
 from collections import defaultdict
 
-from sqlalchemy import select
+from sqlalchemy import func, literal_column, select
 from sqlalchemy.orm import Session
 
 from ..rules import engine as r
@@ -68,6 +68,20 @@ def load_dataset(session: Session, team_ids: list[str] | None = None) -> Dataset
             r.Meeting(x.id, x.team_id, x.started_at, x.ended_at, tuple(attendees[x.id]), ratings[x.id]) for x in meetings
         ],
     )
+
+
+def last_app_write(session: Session):
+    """The latest moment the app itself wrote (seed rows carry no write time). Used to resume the clock."""
+    candidates = [
+        select(func.max(m.Issue.updated_at)),
+        select(func.max(m.Todo.updated_at)),
+        select(func.max(m.Score.updated_at)),
+        select(func.max(func.greatest(m.Meeting.started_at, m.Meeting.section_started_at, m.Meeting.ended_at)))
+        .where(m.Meeting.id.like(literal_column("'mt\\_%'"))),
+        select(func.max(m.MeetingAttendee.joined_at)),
+    ]
+    found = [session.scalar(q) for q in candidates]
+    return max((f for f in found if f is not None), default=None)
 
 
 def dataset_from_db() -> Dataset:

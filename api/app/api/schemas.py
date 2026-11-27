@@ -3,11 +3,18 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
+from fastapi import Path
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
-Note = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
-Priority = Annotated[int, Field(ge=1, le=5)]
+# Ids are seed ids (u1, m1, t12) or generated (i_3f…): letters, digits, "_" and "-". Rejecting anything else at
+# the edge keeps odd bytes (e.g. NUL, which the database driver refuses) from ever reaching a query.
+ID_PATTERN = r"^[A-Za-z0-9_-]{1,64}$"
+IdPath = Annotated[str, Path(pattern=ID_PATTERN, description="Record id, e.g. team_lead, i5, mt_3f2a…")]
+Id = Annotated[str, StringConstraints(pattern=ID_PATTERN)]
+_TEXT = r"^[^\x00]*$"  # any text except NUL
+Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200, pattern=_TEXT)]
+Note = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000, pattern=_TEXT)]
+Priority = Annotated[int, Field(ge=1, le=5, strict=True)]  # strict: true / "3" are client bugs, not priorities
 
 
 class Strict(BaseModel):
@@ -23,7 +30,7 @@ class UserOut(BaseModel):
 
 
 class LoginIn(Strict):
-    user_id: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+    user_id: Id
 
 
 class TeamOut(BaseModel):
@@ -69,7 +76,7 @@ class IssueCreate(Strict):
 
 class TodoCreate(Strict):
     title: Title
-    owner_id: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+    owner_id: Id
 
 
 class TodoOut(BaseModel):
@@ -137,7 +144,7 @@ class AdvanceIn(Strict):
 
 
 class RatingIn(Strict):
-    rating: Annotated[int, Field(ge=1, le=10)]
+    rating: Annotated[int, Field(ge=1, le=10, strict=True)]
 
 
 class SummaryMeasurable(BaseModel):

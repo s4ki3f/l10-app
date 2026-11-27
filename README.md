@@ -6,7 +6,7 @@ One place for a team's weekly numbers (Scorecard), quarterly Rocks, To-Dos and I
 ```bash
 docker compose up --build        # db → migrate → seed → api → web
 ```
-Open **http://localhost:3000**, pick a seeded user and open a second browser (or a private window) as someone else. The API docs are at **http://localhost:8000/docs**, and Postgres is on host port 5433. `make reset` wipes the database volume and starts fresh. The seed is safe to rerun: `docker compose run --rm seed` restores the seed's own rows and keeps the ones you created, and `seed --reset` returns to exactly the seed.
+Open **http://localhost:3000**, pick a seeded user and open a second browser (or a private window) as someone else. The API docs are at **http://localhost:8000/docs**, and Postgres is on host port 5433. `make reset` wipes the database volume and starts fresh. The seed is safe to rerun: `docker compose run --rm seed` refreshes the seed's own rows and keeps what you created (including which seeded Issues you've solved), and `seed --reset` returns to exactly the seed.
 
 | Try as | Role | Teams |
 |---|---|---|
@@ -16,7 +16,7 @@ Open **http://localhost:3000**, pick a seeded user and open a second browser (or
 
 ## Test
 ```bash
-make test     # every layer, unattended: 212 pytest (rules, DB, API) + 4 Playwright tests (the meeting test runs Chromium + Firefox)
+make test     # every layer, unattended: 236 pytest (rules, DB, API) + 4 Playwright tests (the meeting test runs Chromium + Firefox)
 ```
 Requires Docker, [uv](https://docs.astral.sh/uv/) and pnpm. `make test-api` runs only pytest and `make e2e` only Playwright. **[docs/testing.md](docs/testing.md)** covers the fixture and clock strategy and the committed failure trace (`docs/artifacts/`).
 
@@ -31,7 +31,7 @@ It reseeds a fresh database and prints the JSON for `APP_NOW`. Its output at the
 See **[docs/decisions.md](docs/decisions.md)** (one page): the data model and source links, API design, real-time transport and recovery, duplicate-free Make it an Issue, and frozen summaries.
 
 ## Assumptions
-- **Clock.** "Now" comes from one clock. The app's clock starts at `APP_NOW` when the API boots and then moves with real time, so meeting timers tick while "today" stays the seed's day. Tests and the rules report freeze it.
+- **Clock.** "Now" comes from one clock. The app's clock starts at `APP_NOW` when the API boots and then moves with real time, so meeting timers tick while "today" stays the seed's day. If the app already ran past `APP_NOW`, a restart resumes just after its latest write, so time never runs backwards. Tests and the rules report freeze it.
 - **"As of now".** At any `APP_NOW`, things done, solved or created after it haven't happened yet: the To-Do doesn't count as done, the Issue is still open, and a meeting that ended later isn't reported.
 - **Current week's To-Do completion.** The current week is reported like any other week (Nov 9: 3 due, 0 done, 0%). Only a week with nothing due is `null`.
 - **Access.** A user who isn't on a team gets **404** for its data (ids don't leak). An Observer writing in their own team gets **403**.
@@ -43,11 +43,10 @@ See **[docs/decisions.md](docs/decisions.md)** (one page): the data model and so
 - **Advance** carries the section the facilitator saw. A stale double-click gets 409 rather than skipping a section.
 
 ## Known limitations
-- If the API restarts, its clock restarts at `APP_NOW`, so live timers jump back. Elapsed time is clamped at zero; the fix is to persist a clock offset.
 - Summaries are computed on read, not frozen (see decision 5).
 - No lost-update protection for scores and priority (a bonus item); the next step is a version column with `If-Match`.
 - Scores and milestone completion carry no timestamps, so "as of now" can't hide them at earlier dates.
-- Security: no CSRF token (relies on a SameSite=Lax cookie and JSON-only bodies), and `SESSION_SECRET` has a development default that must be set elsewhere.
+- Security: no CSRF token (relies on a SameSite=Lax cookie and JSON-only bodies). Sessions are stateless and expire after 12 hours, so logout clears the browser's cookie but can't revoke a copied one. `SESSION_SECRET` has a development default, and `COOKIE_SECURE=1` turns on the Secure flag; set both outside local development.
 - No facilitator handoff, and no dark-mode toggle.
 
 **At 1,000 companies.** The first pressure points, and the next step for each:
@@ -76,5 +75,6 @@ Review caught these, all now fixed and covered by tests:
 - an untested quarter filter
 - an E2E reset that ran stale image code
 - an external review: a change landing while a browser was still connecting could be missed. I'd skipped the refetch on the first `hello`, and the fix is listen-then-fetch plus a test that commits a change inside that gap
+- a parallel review by three AI reviewer agents (timing, security, rules). It confirmed the graded report and found 19 issues, all verified and fixed with tests. Examples: a seed rerun that could crash `docker compose up`, hints lost while the database listener reconnected, a Rate that could land after End, and inputs that produced a bare 500
 
 Playwright, driven by Claude, was used for the visual review of the UI.

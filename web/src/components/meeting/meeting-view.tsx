@@ -25,14 +25,19 @@ export function MeetingView({ teamId, meetingId, me }: { teamId: string; meeting
   const summary = useSummary(teamId, meetingId, ended);
   const joined = useRef(false);
 
-  // Anyone who can read the team joins; once per page load (refresh/reconnect re-join is harmless and idempotent).
+  const attending = !!state?.attendees.some((a) => a.id === me.user.id);
+  const join = () =>
+    call.join(meetingId)
+      .then((s) => qc.setQueryData<MeetingState>(keys.meeting(teamId, meetingId), s))
+      .catch(() => { joined.current = false; }); // the Join button stays visible, so the user can retry
+
+  // Anyone who can read the team joins automatically, once per page load (re-joining is idempotent).
   useEffect(() => {
-    if (!state || ended || joined.current) return;
+    if (!state || ended || joined.current || attending) return;
     joined.current = true;
-    if (!state.attendees.some((a) => a.id === me.user.id)) {
-      call.join(meetingId).then(() => qc.invalidateQueries({ queryKey: keys.meeting(teamId, meetingId) })).catch(() => {});
-    }
-  }, [state, ended, me.user.id, meetingId, teamId, qc]);
+    join();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, ended, attending]);
 
   if (q.error instanceof ApiError && q.error.status === 404) return <p className="text-center">Meeting not found.</p>;
   if (!state) return <Skeleton className="h-64" />;
@@ -41,7 +46,8 @@ export function MeetingView({ teamId, meetingId, me }: { teamId: string; meeting
   const facilitating = state.facilitator.id === me.user.id;
   return (
     <div className="grid gap-6 [&>*]:min-w-0">
-      <MeetingBar state={state} teamId={teamId} facilitating={facilitating} receivedAt={q.dataUpdatedAt} />
+      <MeetingBar state={state} teamId={teamId} facilitating={facilitating} receivedAt={q.dataUpdatedAt}
+                  attending={attending} onJoin={join} />
       {state.section === "scorecard" && <ScorecardSection teamId={teamId} canWrite={me.can_write} focusWeek="last_closed" />}
       {state.section === "ids" && <IssuesSection teamId={teamId} canWrite={me.can_write} inMeeting />}
       {state.section === "conclude" && <Conclude state={state} me={me} teamId={teamId} />}
@@ -60,14 +66,18 @@ function useElapsed(state: MeetingState, receivedAt: number) {
   return Math.max(0, (nowMs + offset - Date.parse(state.section_started_at)) / 1000);
 }
 
-function MeetingBar({ state, teamId, facilitating, receivedAt }: { state: MeetingState; teamId: string; facilitating: boolean; receivedAt: number }) {
+function MeetingBar({ state, teamId, facilitating, receivedAt, attending, onJoin }: {
+  state: MeetingState; teamId: string; facilitating: boolean; receivedAt: number; attending: boolean; onJoin: () => void;
+}) {
+  const qc = useQueryClient();
+  const keep = (s: MeetingState) => qc.setQueryData<MeetingState>(keys.meeting(teamId, s.id), s); // the server's answer is the new state
   const elapsed = useElapsed(state, receivedAt);
   const limit = state.section_limit_seconds;
   const over = elapsed > limit;
   const index = state.agenda.findIndex((a) => a.key === state.section);
   const next = state.agenda[index + 1];
-  const advance = useApiMutation(teamId, ["meeting"], () => call.advance(state.id, state.section));
-  const end = useApiMutation(teamId, ["meeting"], () => call.end(state.id));
+  const advance = useApiMutation(teamId, ["meeting"], () => call.advance(state.id, state.section), { onData: keep });
+  const end = useApiMutation(teamId, ["meeting"], () => call.end(state.id), { onData: keep });
 
   return (
     <section className={cn("sticky top-[53px] z-10 rounded-xl border bg-card p-4 shadow-sm", over && "border-destructive")}
@@ -125,7 +135,10 @@ function MeetingBar({ state, teamId, facilitating, receivedAt }: { state: Meetin
           )}
         </div>
       </div>
-      <div className="mt-3 flex flex-wrap gap-1.5 text-xs" aria-label="Attendees" data-testid="attendees">
+      <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs" aria-label="Attendees" data-testid="attendees">
+        {!attending && (
+          <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={onJoin} data-testid="join-button">Join</Button>
+        )}
         {state.attendees.map((a) => (
           <span key={a.id} className="rounded-full bg-muted px-2 py-0.5">
             {a.name}{a.id === state.facilitator.id ? " (facilitator)" : a.role === "observer" ? " (observer)" : ""}
@@ -139,7 +152,10 @@ function MeetingBar({ state, teamId, facilitating, receivedAt }: { state: Meetin
 function Conclude({ state, me, teamId }: { state: MeetingState; me: Me; teamId: string }) {
   const attending = state.attendees.some((a) => a.id === me.user.id);
   const mine = state.ratings.find((r) => r.user_id === me.user.id)?.rating;
-  const rate = useApiMutation(teamId, ["meeting"], (n: number) => call.rate(state.id, n));
+  const qc = useQueryClient();
+  const rate = useApiMutation(teamId, ["meeting"], (n: number) => call.rate(state.id, n), {
+    onData: (s) => qc.setQueryData<MeetingState>(keys.meeting(teamId, s.id), s),
+  });
   const names = Object.fromEntries(state.attendees.map((a) => [a.id, a.name]));
 
   return (
@@ -175,7 +191,7 @@ function Conclude({ state, me, teamId }: { state: MeetingState; me: Me; teamId: 
             <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Your rating">
               {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
                 <Button key={n} size="sm" variant={mine === n ? "default" : "outline"} role="radio" aria-checked={mine === n}
-                        className="w-10" onClick={() => rate.mutate(n)} data-testid={`rate-${n}`}>{n}</Button>
+                        className="w-10" disabled={rate.isPending} onClick={() => rate.mutate(n)} data-testid={`rate-${n}`}>{n}</Button>
               ))}
             </div>
           ) : <p className="text-sm text-muted-foreground">{me.can_write ? "Join the meeting to rate it." : "Observers don't rate."}</p>}

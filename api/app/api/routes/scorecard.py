@@ -19,7 +19,7 @@ from ...rules.weeks import last_closed_week, scorecard_weeks, week_of
 from ..deps import CurrentUser, assert_valid_owner, current_user, get_db, load_in_team, now, team_reader
 from ..errors import AppError, conflict, invalid
 from .issues import issues_out
-from ..schemas import CellOut, GoalOut, IssueOut, PersonRef, ScoreIn, ScorecardOut, ScorecardRow
+from ..schemas import CellOut, GoalOut, IdPath, IssueOut, PersonRef, ScoreIn, ScorecardOut, ScorecardRow
 
 router = APIRouter(tags=["scorecard"])
 
@@ -44,7 +44,15 @@ def cell_status(db: Session, measurable: m.Measurable, week: date, at: datetime)
     return engine.measurable_status(goal_of(measurable), score.value if score else None, week, week_of(at))
 
 
-def _open_issue(db: Session, measurable_id: str, week: date) -> m.Issue | None:
+def _open_issue(db: Session, measurable_id: str, week: date, at: datetime) -> m.Issue | None:
+    """The cell's unsolved Issue as of `at` (same rule as the Issues list and the rules report)."""
+    return db.scalars(select(m.Issue).where(
+        m.Issue.source_measurable_id == measurable_id, m.Issue.source_week == week, m.open_as_of(at)
+    ).order_by(m.Issue.created_at)).first()
+
+
+def _index_holder(db: Session, measurable_id: str, week: date) -> m.Issue | None:
+    """The row the partial unique index says is unsolved (stored truth, used after an ON CONFLICT)."""
     return db.scalars(select(m.Issue).where(
         m.Issue.source_measurable_id == measurable_id, m.Issue.source_week == week, m.Issue.solved_at.is_(None)
     )).first()
@@ -60,7 +68,7 @@ def _open_issue(db: Session, measurable_id: str, week: date) -> m.Issue | None:
 )
 def make_it_an_issue(
     response: Response,
-    measurable_id: str,
+    measurable_id: IdPath,
     week: date = Path(description="The week's Monday, e.g. 2026-11-02"),
     user: CurrentUser = Depends(current_user),
     db: Session = Depends(get_db),
@@ -69,7 +77,7 @@ def make_it_an_issue(
     measurable = load_in_team(db, m.Measurable, measurable_id, user, write=True, what="measurable")
     week = cell_week(week, at)
 
-    existing = _open_issue(db, measurable.id, week)
+    existing = _open_issue(db, measurable.id, week, at)
     if existing is not None:  # fast path; the insert below is what makes it race-safe
         response.status_code = status.HTTP_200_OK
         return issues_out(db, [existing])[0]
@@ -83,7 +91,7 @@ def make_it_an_issue(
         stmt = (
             insert(m.Issue)
             .values(id=new_id, team_id=measurable.team_id, title=issue_title(measurable.name, week), owner_id=user.id,
-                    priority=None, created_at=at, source_measurable_id=measurable.id, source_week=week)
+                    priority=None, created_at=at, updated_at=at, source_measurable_id=measurable.id, source_week=week)
             .on_conflict_do_nothing(index_elements=["source_measurable_id", "source_week"], index_where=OPEN_CELL)
             .returning(m.Issue.id)
         )
@@ -93,7 +101,7 @@ def make_it_an_issue(
         db.commit()
         if inserted:
             return issues_out(db, [db.get(m.Issue, inserted)])[0]
-        winner = _open_issue(db, measurable.id, week)
+        winner = _index_holder(db, measurable.id, week)
         if winner is not None:
             response.status_code = status.HTTP_200_OK
             return issues_out(db, [winner])[0]
@@ -117,7 +125,7 @@ def get_scorecard(team: m.Team = Depends(team_reader), db: Session = Depends(get
     scores = {(s.measurable_id, s.week_start): s.value for s in db.scalars(
         select(m.Score).where(m.Score.measurable_id.in_(ids), m.Score.week_start.in_(weeks)))}
     open_issues = {(i.source_measurable_id, i.source_week): i.id for i in db.scalars(
-        select(m.Issue).where(m.Issue.source_measurable_id.in_(ids), m.Issue.solved_at.is_(None), m.Issue.created_at <= at))}
+        select(m.Issue).where(m.Issue.source_measurable_id.in_(ids), m.open_as_of(at)))}
     owners = {u.id: u.name for u in db.scalars(select(m.User).where(m.User.id.in_({x.owner_id for x in measurables})))}
     rows = []
     for x in measurables:
@@ -136,7 +144,7 @@ def get_scorecard(team: m.Team = Depends(team_reader), db: Session = Depends(get
 @router.put("/measurables/{measurable_id}/weeks/{week}/score", response_model=CellOut,
             summary="Enter or edit a score (last save wins). Week must be inside the 13-week Scorecard.")
 def put_score(
-    measurable_id: str,
+    measurable_id: IdPath,
     body: ScoreIn,
     week: date = Path(description="The week's Monday"),
     user: CurrentUser = Depends(current_user),
@@ -152,7 +160,7 @@ def put_score(
     )
     publish(db, measurable.team_id, "scorecard")
     db.commit()
-    issue = _open_issue(db, measurable.id, week)
+    issue = _open_issue(db, measurable.id, week, at)
     return CellOut(week_start=week, value=float(body.value),
                    status=engine.measurable_status(goal_of(measurable), body.value, week, week_of(at)),
                    open_issue_id=issue.id if issue else None)

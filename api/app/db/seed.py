@@ -41,13 +41,22 @@ def _n(value):
     return None if value is None else Decimal(str(value))
 
 
-def _upsert(conn: Connection, model, rows: list[dict]) -> None:
+# On a plain rerun, an Issue's solved state belongs to the app: reopening a seeded Issue the team has since
+# solved could collide with a newer open Issue on the same cell (one unsolved Issue per cell). --reset restores it.
+KEEP_ON_RERUN = {
+    Issue: {"solved_at", "resolution_note", "updated_at"},
+    Todo: {"updated_at"},
+    Score: {"updated_at", "updated_by"},
+}
+
+
+def _upsert(conn: Connection, model, rows: list[dict], keep: set[str] = frozenset()) -> None:
     if not rows:
         return
     table = model.__table__
     keys = [c.name for c in table.primary_key.columns]
     stmt = insert(table).values(rows)
-    updates = {c: stmt.excluded[c] for c in rows[0] if c not in keys}
+    updates = {c: stmt.excluded[c] for c in rows[0] if c not in keys and c not in keep}
     stmt = stmt.on_conflict_do_update(index_elements=keys, set_=updates) if updates else stmt.on_conflict_do_nothing()
     conn.execute(stmt)
 
@@ -64,7 +73,7 @@ def rows_from_seed(seed: dict) -> list[tuple[type, list[dict]]]:
         (Measurable, [
             {**{k: m[k] for k in ("id", "team_id", "name", "owner_id", "unit")}, **goal(m["goal"])} for m in seed["measurables"]
         ]),
-        (Score, [{"measurable_id": s["measurable_id"], "week_start": _d(s["week_start"]), "value": _n(s["value"])} for s in seed["scores"]]),
+        (Score, [{"measurable_id": s["measurable_id"], "week_start": _d(s["week_start"]), "value": _n(s["value"]), "updated_at": None, "updated_by": None} for s in seed["scores"]]),
         (Rock, [{k: r[k] for k in ("id", "team_id", "title", "owner_id", "quarter", "status")} for r in seed["rocks"]]),
         (Milestone, [{**{k: m[k] for k in ("id", "rock_id", "title", "done")}, "due_date": _d(m["due_date"])} for m in seed["milestones"]]),
         (Issue, [
@@ -72,14 +81,14 @@ def rows_from_seed(seed: dict) -> list[tuple[type, list[dict]]]:
                 **{k: i[k] for k in ("id", "team_id", "title", "owner_id", "priority", "resolution_note")},
                 "created_at": _ts(i["created_at"]), "solved_at": _ts(i["solved_at"]),
                 "source_measurable_id": (i["source"] or {}).get("measurable_id"),
-                "source_week": _d((i["source"] or {}).get("week_start")),
+                "source_week": _d((i["source"] or {}).get("week_start")), "updated_at": None,
             }
             for i in seed["issues"]
         ]),
         (Todo, [
             {
                 **{k: t[k] for k in ("id", "team_id", "title", "owner_id", "source_issue_id")}, "due_date": _d(t["due_date"]),
-                "done_at": _ts(t["done_at"]), "created_at": _ts(t["created_at"]),
+                "done_at": _ts(t["done_at"]), "created_at": _ts(t["created_at"]), "updated_at": None,
             }
             for t in seed["todos"]
         ]),
@@ -98,9 +107,10 @@ def rows_from_seed(seed: dict) -> list[tuple[type, list[dict]]]:
     ]
 
 
-def load_seed(conn: Connection, seed: dict) -> None:
+def load_seed(conn: Connection, seed: dict, *, exact: bool = False) -> None:
+    """Upsert every seed row. `exact` (used by --reset) also restores fields the app owns on a rerun."""
     for model, rows in rows_from_seed(seed):
-        _upsert(conn, model, rows)
+        _upsert(conn, model, rows, keep=set() if exact else KEEP_ON_RERUN.get(model, set()))
 
 
 def reset_to_seed(conn: Connection, seed: dict) -> None:
@@ -113,7 +123,7 @@ def reset_to_seed(conn: Connection, seed: dict) -> None:
     conn.execute(delete(Issue).where(Issue.id.not_in(ids("issues"))))
     seeded_cells = [(s["measurable_id"], date.fromisoformat(s["week_start"])) for s in seed["scores"]]
     conn.execute(delete(Score).where(tuple_(Score.measurable_id, Score.week_start).not_in(seeded_cells)))
-    load_seed(conn, seed)
+    load_seed(conn, seed, exact=True)
 
 
 def main(argv: list[str]) -> int:

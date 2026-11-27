@@ -24,6 +24,7 @@ from .settings import database_url
 
 CHANNEL = "l10_events"
 TOPICS = ("scorecard", "issues", "todos", "meeting")
+RESYNC = {"topic": "resync"}  # "you may have missed hints: refetch everything"
 log = logging.getLogger("l10.realtime")
 
 
@@ -42,6 +43,7 @@ class Subscription:
     team_id: str
     queue: asyncio.Queue
     loop: asyncio.AbstractEventLoop
+    overflowed: bool = False  # set when hints were dropped; the stream then sends a resync
 
 
 class Broker:
@@ -67,9 +69,18 @@ class Broker:
     def dispatch(self, message: dict) -> None:
         with self._lock:
             subs = list(self._subs.get(message.get("team_id"), ()))
+        self._deliver(subs, message)
+
+    def resync_all(self) -> None:
+        """After the LISTEN connection was lost, hints in the gap are gone: tell every stream to refetch."""
+        with self._lock:
+            subs = [s for team in self._subs.values() for s in team]
+        self._deliver(subs, RESYNC)
+
+    def _deliver(self, subs: list[Subscription], message: dict) -> None:
         for sub in subs:
             try:
-                sub.loop.call_soon_threadsafe(_offer, sub.queue, message)
+                sub.loop.call_soon_threadsafe(_offer, sub, message)
             except RuntimeError:  # that loop is closed; the subscriber is gone
                 self.unsubscribe(sub)
 
@@ -81,30 +92,34 @@ class Broker:
                 self._thread.start()
 
     def _listen(self) -> None:
-        backoff = 0.5
+        backoff, was_lost = 0.5, False
         while True:
             try:
                 with psycopg.connect(_libpq_url(database_url()), autocommit=True) as conn:
                     conn.execute(f"LISTEN {CHANNEL}")
                     self.ready.set()
                     backoff = 0.5
+                    if was_lost:  # NOTIFY isn't queued for absent listeners: anything in the gap was lost
+                        self.resync_all()
+                        was_lost = False
                     for note in conn.notifies():
                         try:
                             self.dispatch(json.loads(note.payload))
                         except ValueError:
                             log.warning("bad payload on %s: %r", CHANNEL, note.payload)
-            except Exception as exc:  # database restart or network blip: reconnect; browsers refetch on reconnect
+            except Exception as exc:  # database restart or network blip: reconnect, then resync everyone
                 self.ready.clear()
+                was_lost = True
                 log.warning("LISTEN connection lost (%s); retrying in %.1fs", exc, backoff)
                 time.sleep(backoff)
                 backoff = min(backoff * 2, 10)
 
 
-def _offer(queue: asyncio.Queue, message: dict) -> None:
+def _offer(sub: Subscription, message: dict) -> None:
     try:
-        queue.put_nowait(message)
-    except asyncio.QueueFull:  # a stalled client; it refetches everything when it reconnects
-        pass
+        sub.queue.put_nowait(message)
+    except asyncio.QueueFull:  # a stalled client: drop, and make the stream send a resync when it catches up
+        sub.overflowed = True
 
 
 broker = Broker()

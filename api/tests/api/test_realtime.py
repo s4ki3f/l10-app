@@ -173,3 +173,44 @@ def test_hello_waits_until_the_listen_connection_is_up(server, monkeypatch):
         assert time.monotonic() - t0 >= 0.75, "hello was sent before LISTEN was ready"
     finally:
         stream.close()
+
+
+def test_streams_resync_after_the_listen_connection_is_lost(server, engine):
+    """NOTIFY isn't queued for absent listeners, so after LISTEN reconnects every stream is told to refetch."""
+    from sqlalchemy import text
+
+    broker.ensure_started()
+    assert broker.ready.wait(5)
+    stream = Stream(signed_in(server, "u2"), "team_lead")
+    try:
+        assert stream.next(3)[0] == "hello"
+        with engine.connect() as conn:  # kill the listener's database connection, as a DB restart would
+            killed = conn.execute(text(
+                "SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE query ILIKE 'LISTEN%'")).scalar()
+        assert killed >= 1
+        stream.expect("resync", timeout=5)
+    finally:
+        stream.close()
+
+
+def test_no_hello_while_listen_is_down(server, monkeypatch):
+    """A stream that can't be backed by LISTEN is refused (503), so the browser backs off and retries."""
+    import threading as th
+
+    from app.api.routes import events
+
+    monkeypatch.setattr(broker, "ready", th.Event())  # never set
+    monkeypatch.setattr(events, "LISTEN_READY_SECONDS", 0.3)
+    s = Stream(signed_in(server, "u2"), "team_lead")
+    assert s.status == 503
+
+
+def test_overflow_is_flagged_so_the_stream_resyncs():
+    import asyncio
+
+    from app.realtime import Subscription, _offer
+
+    sub = Subscription("team_lead", asyncio.Queue(maxsize=1), asyncio.new_event_loop())
+    _offer(sub, {"topic": "issues"})
+    _offer(sub, {"topic": "todos"})  # dropped
+    assert sub.overflowed

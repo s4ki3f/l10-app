@@ -5,6 +5,7 @@ import { AFFECTS, keys } from "./keys";
 
 export type LiveStatus = "connecting" | "live" | "reconnecting";
 const POLL_WHILE_DOWN_MS = 5_000;
+const REOPEN_AFTER_MS = 3_000;
 
 /**
  * One EventSource per team page. The server sends hints ({topic}); we mark those queries stale and
@@ -18,20 +19,34 @@ const POLL_WHILE_DOWN_MS = 5_000;
 export function useTeamEvents(teamId: string): LiveStatus {
   const qc = useQueryClient();
   const [status, setStatus] = useState<LiveStatus>("connecting");
+  const [generation, setGeneration] = useState(0); // bumping it opens a fresh EventSource
 
   useEffect(() => {
     const es = new EventSource(`/api/teams/${encodeURIComponent(teamId)}/events`);
+    let reopen: ReturnType<typeof setTimeout> | undefined;
     es.addEventListener("hello", () => {
       setStatus("live");
       qc.invalidateQueries({ queryKey: keys.team(teamId) });
     });
     es.addEventListener("change", (ev) => {
       const { topic } = JSON.parse((ev as MessageEvent).data) as { topic: string };
+      if (topic === "resync") {
+        qc.invalidateQueries({ queryKey: keys.team(teamId) }); // the server may have missed hints for us
+        return;
+      }
       for (const t of AFFECTS[topic] ?? []) qc.invalidateQueries({ queryKey: keys.topic(teamId, t) });
     });
-    es.onerror = () => setStatus("reconnecting"); // the browser retries on its own (server sends retry: 1000)
-    return () => es.close();
-  }, [teamId, qc]);
+    es.onerror = () => {
+      setStatus("reconnecting");
+      // A dropped stream retries by itself (server sends retry: 1000). But a non-200 answer — the API
+      // restarting behind the proxy, or a 503 while LISTEN is down — closes it for good, so reopen it.
+      if (es.readyState === EventSource.CLOSED) reopen = setTimeout(() => setGeneration((g) => g + 1), REOPEN_AFTER_MS);
+    };
+    return () => {
+      clearTimeout(reopen);
+      es.close();
+    };
+  }, [teamId, qc, generation]);
 
   // Degrade, don't freeze: while the stream is down, refetch the team every few seconds.
   useEffect(() => {

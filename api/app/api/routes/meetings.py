@@ -20,7 +20,7 @@ from ...rules import engine
 from ..deps import CurrentUser, current_user, get_db, load_in_team, now, team_reader, team_writer
 from ..errors import conflict, forbidden
 from ..schemas import (
-    ActiveMeetingOut, AdvanceIn, AgendaItem, AttendeeOut, MeetingState, PersonRef, RatingIn, RatingOut,
+    ActiveMeetingOut, AdvanceIn, IdPath, AgendaItem, AttendeeOut, MeetingState, PersonRef, RatingIn, RatingOut,
     SummaryMeasurable, SummaryOut,
 )
 from .issues import todos_out
@@ -71,7 +71,11 @@ def _join(db: Session, meeting_id: str, user_id: str, at: datetime) -> None:
 
 
 def _load_live(db: Session, meeting_id: str, user: CurrentUser, *, write: bool) -> m.Meeting:
-    mt = load_in_team(db, m.Meeting, meeting_id, user, write=write, what="meeting")
+    """Authorize, then lock the meeting row for this transaction. End, Advance, Rate and Join all come through
+    here, so they serialise: a Rate or Join can never commit after an End it raced with."""
+    load_in_team(db, m.Meeting, meeting_id, user, write=write, what="meeting")
+    mt = db.scalars(select(m.Meeting).where(m.Meeting.id == meeting_id).with_for_update()
+                    .execution_options(populate_existing=True)).one()
     if mt.ended_at is not None:
         raise conflict("meeting_ended", "this meeting has ended")
     return mt
@@ -92,7 +96,7 @@ def active_meeting(team: m.Team = Depends(team_reader), db: Session = Depends(ge
 
 
 @router.get("/meetings/{meeting_id}", response_model=MeetingState, summary="A meeting's current state")
-def get_meeting(meeting_id: str, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db),
+def get_meeting(meeting_id: IdPath, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db),
                 at: datetime = Depends(now)):
     return meeting_state(db, load_in_team(db, m.Meeting, meeting_id, user, write=False, what="meeting"), at)
 
@@ -122,7 +126,7 @@ def start_meeting(response: Response, team: m.Team = Depends(team_writer), user:
 
 @router.post("/meetings/{meeting_id}/join", response_model=MeetingState,
              summary="Join a live meeting (anyone who can read the team, Observers included)")
-def join_meeting(meeting_id: str, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db),
+def join_meeting(meeting_id: IdPath, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db),
                  at: datetime = Depends(now)):
     mt = _load_live(db, meeting_id, user, write=False)
     _join(db, mt.id, user.id, at)
@@ -133,7 +137,7 @@ def join_meeting(meeting_id: str, user: CurrentUser = Depends(current_user), db:
 
 @router.post("/meetings/{meeting_id}/advance", response_model=MeetingState,
              summary="Facilitator only: move to the next agenda section")
-def advance_meeting(meeting_id: str, body: AdvanceIn, user: CurrentUser = Depends(current_user),
+def advance_meeting(meeting_id: IdPath, body: AdvanceIn, user: CurrentUser = Depends(current_user),
                     db: Session = Depends(get_db), at: datetime = Depends(now)):
     mt = _load_live(db, meeting_id, user, write=True)
     _require_facilitator(mt, user)
@@ -154,7 +158,7 @@ def advance_meeting(meeting_id: str, body: AdvanceIn, user: CurrentUser = Depend
 
 
 @router.post("/meetings/{meeting_id}/end", response_model=MeetingState, summary="Facilitator only: end the meeting")
-def end_meeting(meeting_id: str, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db),
+def end_meeting(meeting_id: IdPath, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db),
                 at: datetime = Depends(now)):
     mt = _load_live(db, meeting_id, user, write=True)
     _require_facilitator(mt, user)
@@ -167,7 +171,7 @@ def end_meeting(meeting_id: str, user: CurrentUser = Depends(current_user), db: 
 
 @router.put("/meetings/{meeting_id}/rating", response_model=MeetingState,
             summary="Rate the meeting 1–10 during Conclude (attending Admins and Team Members); change it until the end")
-def rate_meeting(meeting_id: str, body: RatingIn, user: CurrentUser = Depends(current_user),
+def rate_meeting(meeting_id: IdPath, body: RatingIn, user: CurrentUser = Depends(current_user),
                  db: Session = Depends(get_db), at: datetime = Depends(now)):
     mt = _load_live(db, meeting_id, user, write=True)
     if mt.section != "conclude":
@@ -185,9 +189,10 @@ def rate_meeting(meeting_id: str, body: RatingIn, user: CurrentUser = Depends(cu
 
 @router.get("/meetings/{meeting_id}/summary", response_model=SummaryOut,
             summary="An ended meeting's summary (seeded meetings included); 409 while it is live")
-def meeting_summary(meeting_id: str, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db)):
+def meeting_summary(meeting_id: IdPath, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db),
+                    at: datetime = Depends(now)):
     mt = load_in_team(db, m.Meeting, meeting_id, user, write=False, what="meeting")
-    if mt.ended_at is None:
+    if not engine.happened(mt.ended_at, at):  # not ended yet, as of now
         raise conflict("meeting_live", "the summary is available once the meeting ends")
     data = load_dataset(db, team_ids=[mt.team_id])
     meeting = next(x for x in data.meetings if x.id == mt.id)

@@ -144,3 +144,40 @@ def test_reset_restores_exactly_the_seed(db):
     reset_to_seed(db, SEED)
     assert snapshot() == before
     assert db.execute(text("SELECT solved_at FROM issues WHERE id = 'i1'")).scalar() is None
+
+
+def test_seed_rerun_survives_a_reraised_seed_issue(db):
+    """Solve seeded i5, Make it an Issue again on its cell (m1 / Nov 2), then rerun the seed (compose does on
+    every `up`). Reopening i5 would make two unsolved Issues for one cell; the rerun must not crash."""
+    db.execute(text("UPDATE issues SET solved_at = now(), resolution_note = 'done' WHERE id = 'i5'"))
+    db.execute(text("INSERT INTO issues (id, team_id, title, owner_id, created_at, source_measurable_id, source_week) "
+                    "VALUES ('i_again','team_lead','New deals closed, week of Nov 2','u2',now(),'m1','2026-11-02')"))
+    load_seed(db, SEED)
+    open_for_cell = db.execute(text("SELECT count(*) FROM issues WHERE source_measurable_id='m1' "
+                                    "AND source_week='2026-11-02' AND solved_at IS NULL")).scalar()
+    assert open_for_cell == 1
+
+
+class TestSameTeamAndTimeOrder:
+    def test_todo_cannot_link_another_teams_issue(self, db):
+        rejects(db, "INSERT INTO todos (id, team_id, title, owner_id, due_date, created_at, source_issue_id) "
+                    "VALUES ('tx','team_ops','x','u8','2026-11-20',now(),'i1')")  # i1 is Leadership's
+
+    def test_issue_cannot_come_from_another_teams_measurable(self, db):
+        rejects(db, issue_sql(source_measurable_id="'m7'", source_week="'2026-11-02'"))  # m7 is Ops'
+
+    def test_nothing_is_solved_or_done_before_it_was_created(self, db):
+        rejects(db, "UPDATE issues SET solved_at = created_at - interval '1 minute', resolution_note = 'n' WHERE id = 'i1'")
+        rejects(db, "UPDATE todos SET done_at = created_at - interval '1 minute' WHERE id = 't12'")
+
+
+def test_clock_resumes_after_the_last_app_write(db):
+    from datetime import timedelta
+
+    from sqlalchemy.orm import Session as S
+
+    from app.db.load import last_app_write
+
+    assert last_app_write(S(bind=db)) is None  # fresh seed: the app starts exactly at APP_NOW
+    db.execute(text("UPDATE issues SET priority = 4, updated_at = '2026-11-11T15:40:00Z' WHERE id = 'i3'"))
+    assert last_app_write(S(bind=db)).isoformat() == "2026-11-11T15:40:00+00:00"
