@@ -58,7 +58,7 @@ function TodoRow({ teamId, todo, canWrite }: { teamId: string; todo: Todo; canWr
         <span className="block text-xs text-muted-foreground">
           {todo.owner.name} · due {formatDay(todo.due_date)}
           {todo.done_at && <> · done {formatMoment(todo.done_at)}</>}
-          {todo.source_issue && <> · from Issue “{todo.source_issue.name}”</>}
+          {todo.source_issue && <> · from Issue “{todo.source_issue.title}”</>}
         </span>
       </span>
       {todo.overdue && <Badge variant="destructive">Overdue</Badge>}

@@ -46,14 +46,14 @@ export function SummaryView({ summary: s, teamId }: { summary: Summary; teamId: 
         <Card>
           <CardHeader><CardTitle>Issues solved</CardTitle></CardHeader>
           <CardContent className="text-sm">
-            {s.issues_solved.length ? <ul className="list-disc pl-5">{s.issues_solved.map((i) => <li key={i.id}>{i.name}</li>)}</ul>
+            {s.issues_solved.length ? <ul className="list-disc pl-5">{s.issues_solved.map((i) => <li key={i.id}>{i.title}</li>)}</ul>
               : <p className="text-muted-foreground">None.</p>}
           </CardContent>
         </Card>
         <Card>
           <CardHeader><CardTitle>To-Dos created</CardTitle></CardHeader>
           <CardContent className="text-sm">
-            {s.todos_created.length ? <ul className="list-disc pl-5">{s.todos_created.map((t) => <li key={t.id}>{t.name}</li>)}</ul>
+            {s.todos_created.length ? <ul className="list-disc pl-5">{s.todos_created.map((t) => <li key={t.id}>{t.title}</li>)}</ul>
               : <p className="text-muted-foreground">None.</p>}
           </CardContent>
         </Card>

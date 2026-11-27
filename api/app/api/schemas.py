@@ -21,6 +21,25 @@ class Strict(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+# ---------- errors (the one shape every 4xx/5xx uses) ----------
+
+class FieldError(BaseModel):
+    field: str
+    message: str
+
+
+class ErrorDetail(BaseModel):
+    code: str = Field(description="Machine-readable: not_signed_in, forbidden, not_found, invalid_input, "
+                                  "stale_write, issue_solved, not_off_track, meeting_ended, …")
+    message: str
+    fields: list[FieldError] | None = Field(None, description="On invalid_input: which fields and why")
+    current: dict | None = Field(None, description="On stale_write: what is stored now")
+
+
+class ErrorOut(BaseModel):
+    error: ErrorDetail
+
+
 # ---------- auth ----------
 
 class UserOut(BaseModel):
@@ -49,6 +68,12 @@ class MeOut(BaseModel):
 class PersonRef(BaseModel):
     id: str
     name: str
+
+
+class ItemRef(BaseModel):
+    """A link to an Issue or To-Do."""
+    id: str
+    title: str
 
 
 class IssueSource(BaseModel):
@@ -89,7 +114,7 @@ class TodoOut(BaseModel):
     done_at: datetime | None
     created_at: datetime
     overdue: bool
-    source_issue: PersonRef | None = Field(None, description="The Issue this To-Do came from (id and title)")
+    source_issue: ItemRef | None = Field(None, description="The Issue this To-Do came from")
 
 
 # ---------- meetings ----------
@@ -161,8 +186,8 @@ class SummaryOut(BaseModel):
     ended_at: datetime
     scorecard_week: date
     measurable_status: list[SummaryMeasurable]
-    issues_solved: list[PersonRef] = Field(description="id and title")
-    todos_created: list[PersonRef] = Field(description="id and title")
+    issues_solved: list[ItemRef]
+    todos_created: list[ItemRef]
     attendees: list[AttendeeOut]
     rating: float | None
 

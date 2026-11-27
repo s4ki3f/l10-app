@@ -140,7 +140,7 @@ class TestTodos:
         assert sorted(t["id"] for t in body["items"] if t["overdue"]) == KEY["team_lead"]["overdue_todos"]
         assert body["completion"] == {"week_start": "2026-11-02", **KEY["team_lead"]["todo_completion"]["2026-11-02"]}
         t20 = next(t for t in body["items"] if t["id"] == "t20")
-        assert t20["source_issue"] == {"id": "i7", "name": "Onboarding docs are outdated"}
+        assert t20["source_issue"] == {"id": "i7", "title": "Onboarding docs are outdated"}
 
     def test_week_with_nothing_due_has_no_rate(self, as_user):
         assert as_user("u6").get("/teams/team_sales/todos").json()["completion"] is None

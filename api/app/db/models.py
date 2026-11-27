@@ -76,7 +76,7 @@ class User(Base):
 
 class Membership(Base):
     __tablename__ = "memberships"
-    __table_args__ = (PrimaryKeyConstraint("team_id", "user_id"),)
+    __table_args__ = (PrimaryKeyConstraint("team_id", "user_id"), Index("ix_memberships_user", "user_id"))
     team_id: Mapped[str] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"))
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
 
@@ -91,6 +91,7 @@ class Measurable(Base):
     __table_args__ = (
         _owner_fk(),
         UniqueConstraint("id", "team_id", name="uq_measurables_id_team"),  # target of same-team FKs
+        Index("ix_measurables_team", "team_id"),
         CheckConstraint(_in("goal_type", GOAL_TYPES), name="goal_type_valid"),
         CheckConstraint(
             "(goal_type = 'between' AND goal_min IS NOT NULL AND goal_max IS NOT NULL"
@@ -131,6 +132,7 @@ class Rock(Base):
         _owner_fk(),
         CheckConstraint(_in("status", ROCK_STATUSES), name="rock_status_valid"),
         CheckConstraint(r"quarter ~ '^\d{4}-Q[1-4]$'", name="rock_quarter_format"),
+        Index("ix_rocks_team", "team_id"),
     )
     id: Mapped[str] = mapped_column(Id, primary_key=True)
     team_id: Mapped[str] = mapped_column(ForeignKey("teams.id"))
@@ -142,6 +144,7 @@ class Rock(Base):
 
 class Milestone(Base):
     __tablename__ = "milestones"
+    __table_args__ = (Index("ix_milestones_rock", "rock_id"),)
     id: Mapped[str] = mapped_column(Id, primary_key=True)
     rock_id: Mapped[str] = mapped_column(ForeignKey("rocks.id", ondelete="CASCADE"))
     title: Mapped[str] = mapped_column(Text)
@@ -175,6 +178,7 @@ class Issue(Base):
             unique=True, postgresql_where=text("solved_at IS NULL AND source_measurable_id IS NOT NULL"),
         ),
         Index("ix_issue_team_open", "team_id", postgresql_where=text("solved_at IS NULL")),
+        Index("ix_issues_source_measurable", "source_measurable_id", "team_id"),
     )
     id: Mapped[str] = mapped_column(Id, primary_key=True, default=lambda: new_id("i"))
     team_id: Mapped[str] = mapped_column(ForeignKey("teams.id"))

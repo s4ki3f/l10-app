@@ -20,7 +20,7 @@ from ...rules import engine
 from ..deps import CurrentUser, current_user, get_db, load_in_team, now, team_reader, team_writer
 from ..errors import conflict, forbidden
 from ..schemas import (
-    ActiveMeetingOut, AdvanceIn, IdPath, AgendaItem, AttendeeOut, MeetingState, PersonRef, RatingIn, RatingOut,
+    ActiveMeetingOut, AdvanceIn, IdPath, ItemRef, AgendaItem, AttendeeOut, MeetingState, PersonRef, RatingIn, RatingOut,
     SummaryMeasurable, SummaryOut,
 )
 from .issues import todos_out
@@ -205,8 +205,8 @@ def meeting_summary(meeting_id: IdPath, user: CurrentUser = Depends(current_user
         meeting_id=mt.id, team_id=mt.team_id, started_at=mt.started_at, ended_at=mt.ended_at,
         scorecard_week=s["scorecard_week"],
         measurable_status=[SummaryMeasurable(id=k, name=names[k], status=v) for k, v in sorted(s["measurable_status"].items())],
-        issues_solved=[PersonRef(id=i, name=issue_titles[i]) for i in s["issues_solved"]],
-        todos_created=[PersonRef(id=t, name=todo_titles[t]) for t in s["todos_created"]],
+        issues_solved=[ItemRef(id=i, title=issue_titles[i]) for i in s["issues_solved"]],
+        todos_created=[ItemRef(id=t, title=todo_titles[t]) for t in s["todos_created"]],
         attendees=[AttendeeOut(id=u, name=people[u].name, role=people[u].role) for u in s["attendee_ids"]],
         rating=None if s["rating"] is None else float(s["rating"]),
     )

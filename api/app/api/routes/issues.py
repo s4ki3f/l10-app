@@ -15,7 +15,7 @@ from ..deps import (
 )
 from ..errors import AppError, conflict
 from ..schemas import (
-    CompletionOut, IdPath, IssueCreate, IssueOut, IssuePatch, IssueSource, PersonRef, SolveIn, TodoCreate, TodoList, TodoOut,
+    CompletionOut, IdPath, IssueCreate, ItemRef, IssueOut, IssuePatch, IssueSource, PersonRef, SolveIn, TodoCreate, TodoList, TodoOut,
 )
 
 router = APIRouter(tags=["issues"])
@@ -52,7 +52,7 @@ def todos_out(db: Session, rows: list[m.Todo], at: datetime) -> list[TodoOut]:
             id=r.id, team_id=r.team_id, title=r.title, owner=PersonRef(id=r.owner_id, name=names[r.owner_id]),
             due_date=r.due_date, done_at=r.done_at if engine.happened(r.done_at, at) else None, created_at=r.created_at,
             overdue=engine.is_overdue(todo_of(r), at),
-            source_issue=PersonRef(id=r.source_issue_id, name=titles[r.source_issue_id]) if r.source_issue_id else None,
+            source_issue=ItemRef(id=r.source_issue_id, title=titles[r.source_issue_id]) if r.source_issue_id else None,
         )
         for r in rows
     ]

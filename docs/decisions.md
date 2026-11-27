@@ -9,7 +9,7 @@
     - one score per cell, and only attendees rate;
     - CHECKs on ranges, Monday weeks, solved ⇔ note, goal shape, and nothing solved or done before it was created.
 - **Rejected.** A JSON source field (can't be indexed or kept unique) and stored statuses (they go stale).
-- **Cost.** Statuses are recomputed on every read; at scale they'd be cached per (team, week). Who may own an item spans users and memberships, so the API guard checks that rule.
+- **Cost.** Statuses are recomputed on every read; at scale they'd be cached per (team, week). Who may own an item spans users and memberships, so the API guard checks that rule. Foreign keys on read paths are indexed; a schema test makes every new foreign key an explicit index-or-not decision.
 
 **2. API design.**
 - **Choice.**
@@ -17,7 +17,7 @@
   - Changes that carry rules are named actions: make-issue, solve, advance, end, done/undo.
   - Responses carry computed values, so the browser holds no rules.
   - One error shape, `{"error":{"code","message"}}`, with status codes used consistently.
-  - OpenAPI at `/docs`; the frontend's TypeScript types are generated from it.
+  - OpenAPI at `/docs` documents that error shape on every route (a contract test enforces it); the frontend's TypeScript types, errors included, are generated from it. References are typed for what they point at (`ItemRef {id, title}` for Issues and To-Dos, `PersonRef` for people).
 - **Rejected.** Generic PATCH, which hides rules inside field diffs; GraphQL, unneeded at this size.
 - **Cost.** Other teams' data returns **404, not 403**, so ids don't leak. A test checks that the response bodies are identical. An Observer writing in their own team gets 403.
 

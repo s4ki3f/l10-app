@@ -59,12 +59,22 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -89,7 +99,7 @@
   "/me": {
    "get": {
     "tags": [
-     "auth"
+     "teams"
     ],
     "summary": "Who you are and which teams you can open",
     "operationId": "me_me_get",
@@ -122,12 +132,32 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -138,7 +168,7 @@
   "/teams/{team_id}": {
    "get": {
     "tags": [
-     "auth"
+     "teams"
     ],
     "summary": "One team you can see (404 otherwise)",
     "operationId": "get_team_teams__team_id__get",
@@ -183,12 +213,32 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -199,7 +249,7 @@
   "/teams/{team_id}/members": {
    "get": {
     "tags": [
-     "auth"
+     "teams"
     ],
     "summary": "The team's members plus every Admin (Admins act in every team). Owner pickers drop Observers.",
     "operationId": "team_members_teams__team_id__members_get",
@@ -248,12 +298,32 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -324,12 +394,32 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -393,12 +483,52 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Your role can't do this (Observers can read but not change data)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -464,12 +594,52 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Your role can't do this (Observers can read but not change data)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -525,12 +695,32 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -596,12 +786,52 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Your role can't do this (Observers can read but not change data)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -667,12 +897,52 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Your role can't do this (Observers can read but not change data)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -728,12 +998,52 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Your role can't do this (Observers can read but not change data)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -789,12 +1099,52 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Your role can't do this (Observers can read but not change data)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -866,14 +1216,51 @@
       "description": "An unsolved Issue already existed for this cell; it is returned"
      },
      "409": {
-      "description": "The cell is not off track"
-     },
-     "422": {
-      "description": "Validation Error",
+      "description": "The cell is not off track",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Your role can't do this (Observers can read but not change data)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -929,12 +1316,32 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -1012,12 +1419,52 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Your role can't do this (Observers can read but not change data)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -1073,12 +1520,32 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -1134,12 +1601,32 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -1195,12 +1682,52 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Your role can't do this (Observers can read but not change data)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -1256,12 +1783,52 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Your role can't do this (Observers can read but not change data)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -1327,12 +1894,52 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Your role can't do this (Observers can read but not change data)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -1388,12 +1995,52 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Your role can't do this (Observers can read but not change data)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -1459,12 +2106,52 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Your role can't do this (Observers can read but not change data)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -1520,12 +2207,32 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -1577,12 +2284,32 @@
        "text/event-stream": {}
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -1642,12 +2369,32 @@
        }
       }
      },
-     "422": {
-      "description": "Validation Error",
+     "401": {
+      "description": "Not signed in (no, forged, malformed or expired session)",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not found, or not in a team you can see (indistinguishable on purpose)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid input (field errors listed in error.fields)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorOut"
         }
        }
       }
@@ -1921,19 +2668,6 @@
     ],
     "title": "GoalOut"
    },
-   "HTTPValidationError": {
-    "properties": {
-     "detail": {
-      "items": {
-       "$ref": "#/components/schemas/ValidationError"
-      },
-      "type": "array",
-      "title": "Detail"
-     }
-    },
-    "type": "object",
-    "title": "HTTPValidationError"
-   },
    "IssueCreate": {
     "properties": {
      "title": {
@@ -2111,6 +2845,25 @@
      "week_start"
     ],
     "title": "IssueSource"
+   },
+   "ItemRef": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "title"
+    ],
+    "title": "ItemRef",
+    "description": "A link to an Issue or To-Do."
    },
    "LoginIn": {
     "properties": {
@@ -2603,19 +3356,17 @@
      },
      "issues_solved": {
       "items": {
-       "$ref": "#/components/schemas/PersonRef"
+       "$ref": "#/components/schemas/ItemRef"
       },
       "type": "array",
-      "title": "Issues Solved",
-      "description": "id and title"
+      "title": "Issues Solved"
      },
      "todos_created": {
       "items": {
-       "$ref": "#/components/schemas/PersonRef"
+       "$ref": "#/components/schemas/ItemRef"
       },
       "type": "array",
-      "title": "Todos Created",
-      "description": "id and title"
+      "title": "Todos Created"
      },
      "attendees": {
       "items": {
@@ -2772,13 +3523,13 @@
      "source_issue": {
       "anyOf": [
        {
-        "$ref": "#/components/schemas/PersonRef"
+        "$ref": "#/components/schemas/ItemRef"
        },
        {
         "type": "null"
        }
       ],
-      "description": "The Issue this To-Do came from (id and title)"
+      "description": "The Issue this To-Do came from"
      }
     },
     "type": "object",
@@ -2822,45 +3573,84 @@
     ],
     "title": "UserOut"
    },
-   "ValidationError": {
+   "ErrorDetail": {
     "properties": {
-     "loc": {
-      "items": {
-       "anyOf": [
-        {
-         "type": "string"
+     "code": {
+      "description": "Machine-readable: not_signed_in, forbidden, not_found, invalid_input, stale_write, issue_solved, not_off_track, meeting_ended, \u2026",
+      "title": "Code",
+      "type": "string"
+     },
+     "message": {
+      "title": "Message",
+      "type": "string"
+     },
+     "fields": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/FieldError"
         },
-        {
-         "type": "integer"
-        }
-       ]
-      },
-      "type": "array",
-      "title": "Location"
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "On invalid_input: which fields and why",
+      "title": "Fields"
      },
-     "msg": {
-      "type": "string",
-      "title": "Message"
-     },
-     "type": {
-      "type": "string",
-      "title": "Error Type"
-     },
-     "input": {
-      "title": "Input"
-     },
-     "ctx": {
-      "type": "object",
-      "title": "Context"
+     "current": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "On stale_write: what is stored now",
+      "title": "Current"
      }
     },
-    "type": "object",
     "required": [
-     "loc",
-     "msg",
-     "type"
+     "code",
+     "message"
     ],
-    "title": "ValidationError"
+    "title": "ErrorDetail",
+    "type": "object"
+   },
+   "FieldError": {
+    "properties": {
+     "field": {
+      "title": "Field",
+      "type": "string"
+     },
+     "message": {
+      "title": "Message",
+      "type": "string"
+     }
+    },
+    "required": [
+     "field",
+     "message"
+    ],
+    "title": "FieldError",
+    "type": "object"
+   },
+   "ErrorOut": {
+    "properties": {
+     "error": {
+      "$ref": "#/components/schemas/ErrorDetail"
+     }
+    },
+    "required": [
+     "error"
+    ],
+    "title": "ErrorOut",
+    "type": "object"
    }
   }
  }

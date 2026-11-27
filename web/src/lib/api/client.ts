@@ -1,12 +1,11 @@
 import createClient from "openapi-fetch";
-import type { paths } from "./schema";
+import type { components, paths } from "./schema";
 
 /** Same-origin client: Next.js forwards /api/* to FastAPI, so the session cookie just works. */
 export const api = createClient<paths>({ baseUrl: "/api", credentials: "same-origin" });
 
-export type ApiErrorBody = {
-  error: { code: string; message: string; fields?: { field: string; message: string }[]; current?: Record<string, unknown> };
-};
+/** The one error shape, generated from the API contract (ErrorOut in openapi.json). */
+export type ApiErrorBody = components["schemas"]["ErrorOut"];
 
 export class ApiError extends Error {
   constructor(
@@ -30,7 +29,7 @@ export function unwrap<T>(result: { data?: T; error?: unknown; response: Respons
       body?.error?.code ?? "http_error",
       body?.error?.message ?? result.response.statusText,
       body?.error?.fields ?? [],
-      body?.error?.current,
+      body?.error?.current ?? undefined,
     );
   }
   return result.data as T;

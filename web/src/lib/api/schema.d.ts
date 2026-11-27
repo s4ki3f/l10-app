@@ -562,11 +562,6 @@ export interface components {
             /** Max */
             max: number | null;
         };
-        /** HTTPValidationError */
-        HTTPValidationError: {
-            /** Detail */
-            detail?: components["schemas"]["ValidationError"][];
-        };
         /** IssueCreate */
         IssueCreate: {
             /** Title */
@@ -622,6 +617,16 @@ export interface components {
              * Format: date
              */
             week_start: string;
+        };
+        /**
+         * ItemRef
+         * @description A link to an Issue or To-Do.
+         */
+        ItemRef: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
         };
         /** LoginIn */
         LoginIn: {
@@ -826,16 +831,10 @@ export interface components {
             scorecard_week: string;
             /** Measurable Status */
             measurable_status: components["schemas"]["SummaryMeasurable"][];
-            /**
-             * Issues Solved
-             * @description id and title
-             */
-            issues_solved: components["schemas"]["PersonRef"][];
-            /**
-             * Todos Created
-             * @description id and title
-             */
-            todos_created: components["schemas"]["PersonRef"][];
+            /** Issues Solved */
+            issues_solved: components["schemas"]["ItemRef"][];
+            /** Todos Created */
+            todos_created: components["schemas"]["ItemRef"][];
             /** Attendees */
             attendees: components["schemas"]["AttendeeOut"][];
             /** Rating */
@@ -890,8 +889,8 @@ export interface components {
             created_at: string;
             /** Overdue */
             overdue: boolean;
-            /** @description The Issue this To-Do came from (id and title) */
-            source_issue?: components["schemas"]["PersonRef"] | null;
+            /** @description The Issue this To-Do came from */
+            source_issue?: components["schemas"]["ItemRef"] | null;
         };
         /** UserOut */
         UserOut: {
@@ -905,18 +904,40 @@ export interface components {
              */
             role: "admin" | "team_member" | "observer";
         };
-        /** ValidationError */
-        ValidationError: {
-            /** Location */
-            loc: (string | number)[];
+        /** ErrorDetail */
+        ErrorDetail: {
+            /**
+             * Code
+             * @description Machine-readable: not_signed_in, forbidden, not_found, invalid_input, stale_write, issue_solved, not_off_track, meeting_ended, …
+             */
+            code: string;
             /** Message */
-            msg: string;
-            /** Error Type */
-            type: string;
-            /** Input */
-            input?: unknown;
-            /** Context */
-            ctx?: Record<string, never>;
+            message: string;
+            /**
+             * Fields
+             * @description On invalid_input: which fields and why
+             * @default null
+             */
+            fields: components["schemas"]["FieldError"][] | null;
+            /**
+             * Current
+             * @description On stale_write: what is stored now
+             * @default null
+             */
+            current: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** FieldError */
+        FieldError: {
+            /** Field */
+            field: string;
+            /** Message */
+            message: string;
+        };
+        /** ErrorOut */
+        ErrorOut: {
+            error: components["schemas"]["ErrorDetail"];
         };
     };
     responses: never;
@@ -969,13 +990,22 @@ export interface operations {
                     "application/json": components["schemas"]["UserOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1018,13 +1048,31 @@ export interface operations {
                     "application/json": components["schemas"]["MeOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1052,13 +1100,31 @@ export interface operations {
                     "application/json": components["schemas"]["TeamOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1086,13 +1152,31 @@ export interface operations {
                     "application/json": components["schemas"]["UserOut"][];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1122,13 +1206,31 @@ export interface operations {
                     "application/json": components["schemas"]["IssueOut"][];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1160,13 +1262,49 @@ export interface operations {
                     "application/json": components["schemas"]["IssueOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Your role can't do this (Observers can read but not change data) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1198,13 +1336,49 @@ export interface operations {
                     "application/json": components["schemas"]["TodoOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Your role can't do this (Observers can read but not change data) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1232,13 +1406,31 @@ export interface operations {
                     "application/json": components["schemas"]["TodoList"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1270,13 +1462,49 @@ export interface operations {
                     "application/json": components["schemas"]["IssueOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Your role can't do this (Observers can read but not change data) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1308,13 +1536,49 @@ export interface operations {
                     "application/json": components["schemas"]["IssueOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Your role can't do this (Observers can read but not change data) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1342,13 +1606,49 @@ export interface operations {
                     "application/json": components["schemas"]["TodoOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Your role can't do this (Observers can read but not change data) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1376,13 +1676,49 @@ export interface operations {
                     "application/json": components["schemas"]["TodoOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Your role can't do this (Observers can read but not change data) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1419,20 +1755,49 @@ export interface operations {
                     "application/json": components["schemas"]["IssueOut"];
                 };
             };
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Your role can't do this (Observers can read but not change data) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
             /** @description The cell is not off track */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
             };
-            /** @description Validation Error */
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1460,13 +1825,31 @@ export interface operations {
                     "application/json": components["schemas"]["ScorecardOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1500,13 +1883,49 @@ export interface operations {
                     "application/json": components["schemas"]["CellOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Your role can't do this (Observers can read but not change data) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1534,13 +1953,31 @@ export interface operations {
                     "application/json": components["schemas"]["ActiveMeetingOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1568,13 +2005,31 @@ export interface operations {
                     "application/json": components["schemas"]["MeetingState"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1602,13 +2057,49 @@ export interface operations {
                     "application/json": components["schemas"]["MeetingState"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Your role can't do this (Observers can read but not change data) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1636,13 +2127,49 @@ export interface operations {
                     "application/json": components["schemas"]["MeetingState"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Your role can't do this (Observers can read but not change data) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1674,13 +2201,49 @@ export interface operations {
                     "application/json": components["schemas"]["MeetingState"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Your role can't do this (Observers can read but not change data) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1708,13 +2271,49 @@ export interface operations {
                     "application/json": components["schemas"]["MeetingState"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Your role can't do this (Observers can read but not change data) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1746,13 +2345,49 @@ export interface operations {
                     "application/json": components["schemas"]["MeetingState"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Your role can't do this (Observers can read but not change data) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflicts with current state (e.g. stale_write, issue_solved, meeting_ended, not_off_track) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1780,13 +2415,31 @@ export interface operations {
                     "application/json": components["schemas"]["SummaryOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1814,13 +2467,31 @@ export interface operations {
                     "text/event-stream": unknown;
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -1848,13 +2519,31 @@ export interface operations {
                     "application/json": components["schemas"]["RockOut"][];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not signed in (no, forged, malformed or expired session) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not found, or not in a team you can see (indistinguishable on purpose) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Invalid input (field errors listed in error.fields) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
